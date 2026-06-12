@@ -1,0 +1,13 @@
+{{/*
+  Ante comments shortcode.
+
+  Drop {{</* ante */>}} into a content page (Markdown) to render the comment
+  thread inline. It delegates to the `ante.html` partial so the per-page
+  script-include guard is shared — putting both the shortcode and the partial on
+  one page still loads the embed bundle only once.
+
+  The thread is scoped to this page's slug (.Page.File.ContentBaseName), hashed
+  to the on-chain topic by the web component. Configure addresses under
+  [params.ante] in your site config (see config.toml in this example dir).
+*/}}
+{{ partial "ante.html" .Page }}

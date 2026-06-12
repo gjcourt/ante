@@ -1,0 +1,26 @@
+{
+  "name": "ante-web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "build:embed": "tsc -b && vite build --config vite.embed.config.ts",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@turnkey/sdk-browser": "^6.1.0",
+    "@turnkey/viem": "^0.14.30",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "~5.6.3",
+    "vite": "^6.0.5"
+  }
+}

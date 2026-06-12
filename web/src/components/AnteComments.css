@@ -1,0 +1,376 @@
+/* Ante widget — self-contained styling, scoped under .ante */
+.ante {
+  --ante-bg: #ffffff;
+  --ante-fg: #11151c;
+  --ante-muted: #6b7280;
+  --ante-border: #e5e7eb;
+  --ante-accent: #4f46e5;
+  --ante-accent-fg: #ffffff;
+  --ante-active: #047857;
+  --ante-active-bg: #d1fae5;
+  --ante-withdrawn: #475569;
+  --ante-withdrawn-bg: #e2e8f0;
+  --ante-slashed: #b91c1c;
+  --ante-slashed-bg: #fee2e2;
+  --ante-challenged: #b45309;
+  --ante-challenged-bg: #fef3c7;
+  --ante-radius: 12px;
+
+  max-width: 640px;
+  margin: 0 auto;
+  color: var(--ante-fg);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.ante * {
+  box-sizing: border-box;
+}
+
+.ante__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.ante__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 650;
+}
+
+.ante__tagline {
+  margin: 4px 0 0;
+  color: var(--ante-muted);
+  font-size: 13px;
+  max-width: 42ch;
+}
+
+.ante__wallet {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--ante-border);
+  border-radius: 999px;
+  font-size: 12px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.ante__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ante-active);
+}
+
+/* Banners */
+.ante__banner {
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+.ante__banner--warn {
+  background: #fef9c3;
+  color: #854d0e;
+}
+.ante__banner--error {
+  background: var(--ante-slashed-bg);
+  color: var(--ante-slashed);
+}
+.ante__banner code {
+  background: rgba(0, 0, 0, 0.06);
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 12px;
+}
+
+/* Composer */
+.ante__composer {
+  border: 1px solid var(--ante-border);
+  border-radius: var(--ante-radius);
+  padding: 14px;
+  margin-bottom: 22px;
+  background: var(--ante-bg);
+}
+
+.ante__textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--ante-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  color: inherit;
+  outline: none;
+}
+.ante__textarea:focus {
+  border-color: var(--ante-accent);
+}
+
+.ante__composer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.ante__stake-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ante-muted);
+}
+
+.ante__input {
+  width: 84px;
+  border: 1px solid var(--ante-border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font: inherit;
+  color: inherit;
+  outline: none;
+}
+.ante__input--sm {
+  width: 64px;
+  padding: 4px 6px;
+}
+.ante__input:focus {
+  border-color: var(--ante-accent);
+}
+
+.ante__refund {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--ante-muted);
+}
+
+.ante__composer-status {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--ante-accent);
+}
+
+/* Buttons */
+.ante__btn {
+  border: 1px solid var(--ante-border);
+  background: #f9fafb;
+  color: var(--ante-fg);
+  border-radius: 9px;
+  padding: 8px 14px;
+  font: inherit;
+  font-weight: 550;
+  cursor: pointer;
+  transition: filter 0.12s ease, opacity 0.12s ease;
+}
+.ante__btn:hover:not(:disabled) {
+  filter: brightness(0.97);
+}
+.ante__btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.ante__btn--primary {
+  background: var(--ante-accent);
+  border-color: var(--ante-accent);
+  color: var(--ante-accent-fg);
+}
+.ante__btn--ghost {
+  background: transparent;
+}
+.ante__btn--sm {
+  padding: 5px 10px;
+  font-size: 13px;
+}
+.ante__btn--flag {
+  color: var(--ante-slashed);
+}
+
+/* List + cards */
+.ante__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ante__empty {
+  color: var(--ante-muted);
+  font-size: 14px;
+  text-align: center;
+  padding: 24px 0;
+}
+
+.ante__card {
+  border: 1px solid var(--ante-border);
+  border-radius: var(--ante-radius);
+  padding: 14px;
+  background: var(--ante-bg);
+}
+
+.ante__card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.ante__author {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ante__time {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--ante-muted);
+}
+
+.ante__content {
+  margin: 0 0 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ante__meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.ante__chip {
+  font-size: 12px;
+  background: #f3f4f6;
+  color: var(--ante-muted);
+  border-radius: 999px;
+  padding: 3px 9px;
+}
+.ante__chip--tip {
+  background: #ecfeff;
+  color: #0e7490;
+}
+/* Confidence signal: deliberately understated — present but not loud, until we
+   decide to feature it. A quiet dashed outline rather than a filled chip. */
+.ante__chip--stake-mult {
+  background: transparent;
+  color: var(--ante-muted);
+  border: 1px dashed #e5e7eb;
+  opacity: 0.75;
+}
+
+.ante__badge {
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+.ante__badge--active {
+  background: var(--ante-active-bg);
+  color: var(--ante-active);
+}
+.ante__badge--withdrawn {
+  background: var(--ante-withdrawn-bg);
+  color: var(--ante-withdrawn);
+}
+.ante__badge--slashed {
+  background: var(--ante-slashed-bg);
+  color: var(--ante-slashed);
+}
+.ante__badge--challenged {
+  background: var(--ante-challenged-bg);
+  color: var(--ante-challenged);
+}
+
+.ante__chip--challenge {
+  background: var(--ante-challenged-bg);
+  color: var(--ante-challenged);
+}
+
+/* Challenge composer + moderator panel */
+.ante__challenge-panel {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--ante-challenged);
+  border-radius: var(--ante-radius);
+  background: #fffbeb;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ante__challenge-explain {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ante-muted);
+}
+
+.ante__mod-panel {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px dashed var(--ante-accent);
+  border-radius: var(--ante-radius);
+  background: #eef2ff;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ante__mod-head {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ante-accent);
+}
+
+.ante__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ante__tip-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ante__window-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--ante-muted);
+}
+
+.ante__card-status {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--ante-accent);
+}
+
+@media (prefers-color-scheme: dark) {
+  .ante {
+    --ante-bg: #12161d;
+    --ante-fg: #e5e7eb;
+    --ante-muted: #9ca3af;
+    --ante-border: #2a3038;
+    --ante-accent: #818cf8;
+    --ante-accent-fg: #0b0e13;
+  }
+  .ante__btn {
+    background: #1b212a;
+  }
+  .ante__chip {
+    background: #1b212a;
+  }
+}

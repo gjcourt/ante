@@ -1,0 +1,41 @@
+.demo {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 48px 20px 64px;
+}
+
+.demo__post {
+  margin-bottom: 28px;
+}
+
+.demo__title {
+  margin: 0 0 6px;
+  font-size: 30px;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.demo__byline {
+  margin: 0 0 18px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.demo__rule {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 0 0 28px;
+}
+
+.demo__footer {
+  margin-top: 40px;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .demo__rule {
+    border-top-color: #2a3038;
+  }
+}

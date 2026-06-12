@@ -1,0 +1,24 @@
+# Example Hugo site config showing the [params.ante] block the Ante embed reads.
+# Hugo accepts either config.toml or hugo.toml at the site root (hugo.toml takes
+# precedence on newer Hugo). The [params.ante] block is identical either way —
+# copy it into your existing site config.
+
+baseURL = "https://blog.example.com/"
+title = "My Blog"
+
+[params.ante]
+  # Deployed Ante contract address (from `forge script Deploy` in ../contracts).
+  address = "0xYourAnteContractAddress000000000000000000"
+  # Stake token (TIP-20 stablecoin, e.g. pathUSD on Tempo testnet — 6 decimals).
+  token = "0x20c0000000000000000000000000000000000000"
+  # Tempo testnet JSON-RPC endpoint (must allow CORS from your blog origin —
+  # see EMBEDDING.md "RPC CORS").
+  rpc = "https://rpc.moderato.tempo.xyz"
+  # Chain id (decimal). Tempo testnet "Moderato" = 42431.
+  chainId = "42431"
+  # Optional block explorer (shown for tx links if the widget uses it).
+  explorer = "https://explore.testnet.tempo.xyz"
+  # Where you host the embed bundle. Defaults to "/ante.js" if omitted. Point it
+  # at your homelab/CDN URL behind Cloudflare, e.g.
+  #   script = "https://cdn.example.com/ante.js"
+  script = "/ante.js"

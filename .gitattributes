@@ -1,0 +1,2 @@
+# Vendored Foundry dependencies — not first-party code.
+contracts/lib/** linguist-vendored

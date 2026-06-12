@@ -1,0 +1,34 @@
+{{/*
+  Ante comments partial.
+
+  Emits the <ante-comments> web component for the current page and includes the
+  embed bundle exactly once per rendered page (guarded via .Scratch so multiple
+  invocations — partial + shortcode — never double-load the script).
+
+  The per-post comment thread is scoped by `slug`, which the element hashes to
+  the on-chain topic (keccak256(slug)). Using .Page.File.ContentBaseName gives a
+  stable slug per source file (e.g. "my-post" for content/posts/my-post.md).
+
+  Configure addresses/RPC in your site config under [params.ante] — see
+  config.toml in this example dir.
+
+  Usage in a single template (e.g. layouts/_default/single.html), before footer:
+
+      {{ partial "ante.html" . }}
+*/}}
+
+<ante-comments
+  slug="{{ .Page.File.ContentBaseName }}"
+  ante-address="{{ .Site.Params.ante.address }}"
+  token-address="{{ .Site.Params.ante.token }}"
+  rpc-url="{{ .Site.Params.ante.rpc }}"
+  chain-id="{{ .Site.Params.ante.chainId }}"
+  {{ with .Site.Params.ante.explorer }}explorer-url="{{ . }}"{{ end }}
+></ante-comments>
+
+{{/* Load the bundle once per page. The element self-registers on load. */}}
+{{ if not (.Page.Scratch.Get "anteScriptLoaded") }}
+  {{ .Page.Scratch.Set "anteScriptLoaded" true }}
+  {{ $src := .Site.Params.ante.script | default "/ante.js" }}
+  <script src="{{ $src }}" defer></script>
+{{ end }}

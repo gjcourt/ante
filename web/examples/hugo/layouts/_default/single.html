@@ -1,0 +1,24 @@
+{{/*
+  Example single-page template showing where to mount the Ante comments.
+
+  The key line is `{{ partial "ante.html" . }}` placed AFTER the article body and
+  BEFORE the footer. This renders the per-post comment thread and loads the embed
+  bundle once. Adapt the surrounding markup to your own theme; only the partial
+  call matters.
+
+  Alternatively, skip the template change and drop the `{{</* ante */>}}`
+  shortcode into the Markdown body of any post.
+*/}}
+{{ define "main" }}
+  <article>
+    <h1>{{ .Title }}</h1>
+    {{ .Content }}
+  </article>
+
+  {{/* --- Ante comments: per-post thread, scoped by this page's slug --- */}}
+  {{ partial "ante.html" . }}
+
+  <footer>
+    {{ partial "footer.html" . }}
+  </footer>
+{{ end }}

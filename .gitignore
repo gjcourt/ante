@@ -1,0 +1,16 @@
+# deps
+node_modules/
+# foundry
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+# vite
+web/dist/
+web/node_modules/
+# env
+.env
+.env.local
+*.local
+# misc
+.DS_Store
+web/dist-embed/

@@ -1,0 +1,25 @@
+{
+  "name": "ante-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Minimal backend for Ante's Turnkey passkey embedded-wallet flow: one endpoint that creates a sub-organization + wallet, keeping the parent-org API key server-side.",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@turnkey/sdk-server": "^4.2.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
