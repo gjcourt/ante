@@ -6,8 +6,9 @@ small refundable stablecoin **stake**; good comments get it back (and can earn
 tips), challenged-and-upheld comments get it **slashed**. Challenging is also
 **staked**: a flagger bonds funds to open a challenge, then a moderator resolves
 it — upheld refunds the bond plus a bounty, rejected forfeits it. No account, no
-seed phrase — a passkey-backed embedded wallet (Turnkey), with a dev key
-fallback for testnet.
+seed phrase — a passkey wallet via Tempo's official wagmi **webAuthn** connector
+(backendless: the WebAuthn ceremony runs client-side, no API keys, no signup),
+with a dev-key fallback for testnet.
 
 All on-chain reads/writes go through **viem**. Comments are reconstructed
 entirely from contract events (`Posted` / `Withdrawn` / `Slashed` / `Tipped` /
@@ -58,38 +59,48 @@ See [`.env.example`](./.env.example) for the full list. Summary:
 | `VITE_TOKEN_ADDRESS` | yes (live) | Stake-token (TIP-20 stablecoin) address |
 | `VITE_IS_MODERATOR` | no | `true` forces the moderator resolve panel on without reading the on-chain `moderators` mapping (dev/demo only) |
 | `VITE_DEV_PRIVATE_KEY` | dev fallback | Throwaway **testnet** key (`0x`+64 hex) for the dev wallet |
-| `VITE_TURNKEY_ORGANIZATION_ID` | Turnkey path | Turnkey parent org id |
-| `VITE_TURNKEY_API_BASE_URL` | Turnkey path | Turnkey API base URL |
-| `VITE_TURNKEY_RP_ID` | Turnkey path | WebAuthn relying-party id (your domain) |
-| `VITE_TURNKEY_SIGN_WITH` | Turnkey path | Provisioned Turnkey wallet address to sign with |
 
-> Values marked `TODO(facts)` in the source are placeholders awaiting verified
-> Tempo facts (`docs/tempo-facts.md`). Supply them via env before any real use —
-> the code never invents an RPC URL, chain id, or token address.
+> The passkey path is **backendless** and needs **NO env** — no API keys, no
+> signup. Only the chain vars and (optionally) the dev key are configured here.
+> Values left blank fall back to the verified Tempo defaults baked into
+> `src/config/chain.ts`; the code never invents an RPC URL, chain id, or token
+> address.
 
 ## Wallet model
 
-A single [`WalletProvider`](./src/wallet/WalletProvider.ts) interface
-(`connect()`, `getAddress()`, `signAndSend(tx)`, `getWalletClient()`) with two
-implementations:
+Two implementations, selected at runtime:
 
-1. **Turnkey passkey** ([`TurnkeyWalletProvider`](./src/wallet/TurnkeyWalletProvider.ts))
-   — the real embedded-wallet path (Face ID / Touch ID, no extension, no seed
-   phrase). Selected when all `VITE_TURNKEY_*` vars are set. The exact Turnkey
-   SDK call shapes are marked `TODO(facts)` pending verified setup notes.
+1. **Passkey (default)** — Tempo's official wagmi **webAuthn** connector
+   (`webAuthn` from `wagmi/tempo`), wired through
+   [`AnteWeb3Provider`](./src/wallet/AnteWeb3Provider.tsx) (a runtime-built
+   wagmi `Config`) and adapted for the hook by
+   [`usePasskeyWallet`](./src/wallet/usePasskeyWallet.ts). Face ID / Touch ID,
+   no extension, no seed phrase, **no backend** — the WebAuthn ceremony runs
+   client-side, scoped to the current origin's registrable domain. The address
+   is derived from the credential, so returning to the same site on the same
+   device recovers the same address (and stake). Standard `wagmi` hooks
+   (`useAccount`, `useConnect`, `useWalletClient` / `useSendTransactionSync`)
+   read connection state and sign. Requires a secure context (HTTPS or
+   `localhost`).
 2. **Dev key** ([`DevWalletProvider`](./src/wallet/DevWalletProvider.ts)) — a
-   viem local account from `VITE_DEV_PRIVATE_KEY`. **Testnet only.** This is the
-   path that makes the app run end-to-end today.
+   viem local account from `VITE_DEV_PRIVATE_KEY`. **Testnet only.** Selected
+   whenever `VITE_DEV_PRIVATE_KEY` is set (it takes precedence), so the app runs
+   end-to-end without a passkey ceremony — the guaranteed path for CI / local
+   demos.
 
-`selectWalletProvider()` prefers Turnkey, falls back to the dev key.
+`useAnte` resolves one signer per render — dev key if present, otherwise the
+passkey — behind a small stable seam (`{ address, sendTx }`), so every write is
+identical regardless of which wallet is active.
 
 ## Architecture
 
 | File | Role |
 |---|---|
 | `src/config/chain.ts` | `AnteConfig` type, env-derived `defaultAnteConfig`, `makeChain()`, viem `Chain` (env- and runtime-overridable) |
-| `src/config/AnteProvider.tsx` | React context supplying the runtime `AnteConfig`; `useAnteConfig()` falls back to env defaults |
-| `src/wallet/*` | `WalletProvider` seam + Turnkey and dev implementations (config-driven) |
+| `src/config/AnteProvider.tsx` | React context supplying the runtime `AnteConfig`; wraps children in `AnteWeb3Provider`; `useAnteConfig()` falls back to env defaults |
+| `src/wallet/AnteWeb3Provider.tsx` | runtime-built wagmi `Config` (chain from `AnteConfig`, `webAuthn()` connector) wrapping `<WagmiProvider><QueryClientProvider>` |
+| `src/wallet/usePasskeyWallet.ts` | thin hook adapting standard wagmi hooks to the `{ address, sendTx }` seam `useAnte` consumes |
+| `src/wallet/DevWalletProvider.ts` | dev-key fallback (viem local account); owns the canonical `WalletKind` type |
 | `src/hooks/useAnte.ts` | reads comments from logs (Posted filtered by `topic`); `post` / `withdraw` / `tip` / staked `flag` / moderator `resolveFlag` + ERC-20 approve handling; accepts an optional config override (e.g. `topic`) |
 | `src/components/AnteComments.tsx` | the widget (list, composer, withdraw, tip, staked challenge, moderator resolve panel) |
 | `src/embed/ante-element.tsx` | the `<ante-comments>` web component (shadow root + injected CSS + `AnteProvider`); built by `npm run build:embed` |

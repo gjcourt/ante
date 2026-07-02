@@ -145,9 +145,12 @@ Content-Security-Policy:
 
 ### HTTPS required for passkeys
 
-The Turnkey embedded-wallet flow uses WebAuthn (Face ID / Touch ID), which the
-browser only allows on a **secure context** (HTTPS, or `localhost` for dev).
-Cloudflare covers HTTPS automatically.
+The wallet is Tempo's official wagmi **webAuthn passkey connector**, which uses
+WebAuthn (Face ID / Touch ID). The browser only allows WebAuthn on a **secure
+context** (HTTPS, or `localhost` for dev). Cloudflare covers HTTPS
+automatically. The connector is **backendless** — the ceremony runs entirely in
+the visitor's browser and, beyond the RPC, talks to no auth or attestation
+server — so there is nothing else to host.
 
 ### Why a web component (not an iframe)
 
@@ -155,5 +158,36 @@ Cloudflare covers HTTPS automatically.
 runs in the host page's **top-level origin**, so the passkey flow works. We still
 get full CSS isolation via the shadow root — the benefit of an iframe without the
 WebAuthn penalty. (This is also why `dev-private-key` exists: a testnet-only
-fallback for demos before passkeys are wired, and it is bundled into the page —
-never put a real/funded key there.)
+fallback for demos / CI when you'd rather not run a passkey ceremony, and it is
+bundled into the page — never put a real/funded key there.)
+
+### Passkeys are bound to a site AND a device (read this before embedding)
+
+A passkey — and therefore the staked funds behind it — is scoped along **two
+independent axes**, and neither is recoverable across the boundary:
+
+- **Site (domain) axis.** The passkey is tied to this site: it is bound to the
+  page's **registrable domain** (e.g. `example.com`, covering `www.example.com`
+  and other subdomains). It is **separate from any other Ante site, including
+  the standalone Ante app** on its own domain. A commenter who stakes via this
+  blog embed and later visits the standalone app gets a **different address**;
+  their stake is invisible there and cannot be recovered from another domain.
+- **Device / authenticator axis.** The passkey exists **only on this device**
+  (or where this passkey is synced, e.g. an iCloud/Google-synced platform
+  authenticator). On a brand-new device with no synced authenticator, there is
+  no way to recover it.
+
+**Operator caveats (get the domain right the first time):**
+
+- **apex vs `www`.** The two SHARE a registrable domain, so an embed on
+  `www.example.com` and one on the apex `example.com` resolve to the **same**
+  passkey/address — good. But moving the blog to a **different registrable
+  domain** (e.g. `example.com` → `blog.io`) strands every existing commenter's
+  stake. Pick the domain deliberately and don't migrate it.
+- **Same-origin widgets share identity — but only at mount.** Two
+  `<ante-comments>` elements on the same origin read the **same** origin-scoped
+  passkey session, but they discover it via a storage read at **mount /
+  reconnect time**, NOT live. A fresh connect in one widget does **not** flip an
+  already-mounted sibling widget to "connected" in the same tick; the sibling
+  picks up the shared session only on its own next mount/reconnect. Expect one
+  widget per post in practice, so this is rarely visible.

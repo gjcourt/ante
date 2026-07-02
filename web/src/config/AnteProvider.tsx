@@ -1,5 +1,10 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { defaultAnteConfig, type AnteConfig } from "./chain";
+// DIRECT path (not the barrel) so the runtime ESM cycle stays exactly two
+// modules — config/AnteProvider ↔ wallet/AnteWeb3Provider — resolved because
+// both reference the other ONLY inside a component body (no module-top-level
+// eval), which ESM live-binding handles safely.
+import { AnteWeb3Provider } from "../wallet/AnteWeb3Provider";
 
 // ---------------------------------------------------------------------------
 // AnteProvider — supplies the runtime AnteConfig via React context.
@@ -28,7 +33,7 @@ export function AnteProvider({
   );
   return (
     <AnteConfigContext.Provider value={merged}>
-      {children}
+      <AnteWeb3Provider>{children}</AnteWeb3Provider>
     </AnteConfigContext.Provider>
   );
 }

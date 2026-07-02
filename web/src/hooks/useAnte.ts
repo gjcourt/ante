@@ -20,8 +20,9 @@ import {
 import { useAnteConfig } from "../config/AnteProvider";
 import {
   makePublicClient,
-  selectWalletProvider,
-  type WalletProvider,
+  usePasskeyWallet,
+  DevWalletProvider,
+  type WalletKind,
 } from "../wallet";
 import {
   loadFeedCache,
@@ -132,7 +133,7 @@ export interface UseAnte {
   /** true when the connected wallet may resolve challenges (see hook docs). */
   isModerator: boolean;
   address: Address | null;
-  walletKind: WalletProvider["kind"] | null;
+  walletKind: WalletKind | null;
   loading: boolean;
   error: string | null;
   configured: boolean;
@@ -177,7 +178,6 @@ export function useAnte(override?: Partial<AnteConfig>): UseAnte {
   const moderatorOverride = config.isModerator === true;
 
   const publicClientRef = useRef<PublicClient | null>(null);
-  const walletRef = useRef<WalletProvider | null>(null);
 
   // In-session authoritative feed state: the folded comment map + the highest
   // block already synced. Hydrated from IndexedDB on first sync, then advanced
@@ -194,39 +194,82 @@ export function useAnte(override?: Partial<AnteConfig>): UseAnte {
   const [challengeWindow, setChallengeWindow] = useState<number | null>(null);
   const [address, setAddress] = useState<Address | null>(null);
   const [isModerator, setIsModerator] = useState(false);
-  const [walletKind, setWalletKind] =
-    useState<WalletProvider["kind"] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Rebuild the cached singletons whenever the active config changes (e.g. a
+  // --- Signer resolution (one seam, resolved as a plain value per render) ---
+  //
+  // The dev private-key path (local-dev only, selected iff `devPrivateKey` is
+  // set) and the Tempo webAuthn passkey path both satisfy ONE signer seam that
+  // the six write bodies touch: `{ address, connect(), sendTx({to,data,value?}) }`.
+  // `address` is a plain value, NOT an accessor that connects as a side effect —
+  // `connect()` is called explicitly at each write's preamble.
+  const passkey = usePasskeyWallet();
+  const devWallet = useMemo(
+    () => DevWalletProvider.fromConfig(config),
+    [config]
+  );
+
+  const walletKind: WalletKind | null = devWallet
+    ? "dev"
+    : passkey.address
+      ? "passkey"
+      : null;
+
+  const signer = useMemo<{
+    address: Address | undefined;
+    /** connect and, where the impl can, return the freshly-connected address. */
+    connect: () => Promise<Address | undefined>;
+    sendTx: (tx: {
+      to: `0x${string}`;
+      data: `0x${string}`;
+      value?: bigint;
+    }) => Promise<Hash>;
+  }>(
+    () =>
+      devWallet
+        ? {
+            address: devWallet.getAddress() ?? undefined,
+            // Dev connect returns the address synchronously — thread it back so
+            // the same handler can proceed without waiting for a re-render. The
+            // moderator refresh is driven by the `address`-sync effect below.
+            connect: async () => {
+              const addr = await devWallet.connect();
+              setAddress(addr);
+              return addr;
+            },
+            sendTx: (tx) => devWallet.signAndSend(tx),
+          }
+        : {
+            address: passkey.address,
+            // Passkey connect resolves to void (frozen surface); the address
+            // lands via the sync effect on the next render.
+            connect: async () => {
+              await passkey.connect();
+              return passkey.address;
+            },
+            sendTx: passkey.sendTx,
+          },
+    [devWallet, passkey.address, passkey.connect, passkey.sendTx]
+  );
+
+  // Rebuild the cached public client whenever the active config changes (e.g. a
   // different RPC/contract/topic). Feed state is also reset so we don't fold a
-  // new thread's logs onto a stale map.
+  // new thread's logs onto a stale map. Also clear any passkey-derived address
+  // so a chainId switch cannot leave a stale address on the non-dev path (the
+  // dev path re-derives its address synchronously on the next connect()).
   useEffect(() => {
     publicClientRef.current = null;
-    walletRef.current = null;
     feedStateRef.current = null;
-  }, [config]);
+    if (!devWallet) setAddress(null);
+  }, [config, devWallet]);
 
-  // Lazily create the singletons.
+  // Lazily create the read-only client.
   const getPublicClient = useCallback((): PublicClient => {
     if (!publicClientRef.current) {
       publicClientRef.current = makePublicClient(config);
     }
     return publicClientRef.current;
-  }, [config]);
-
-  const getWallet = useCallback((): WalletProvider => {
-    if (!walletRef.current) {
-      const w = selectWalletProvider(config);
-      if (!w) {
-        throw new Error(
-          "No wallet configured. Set a dev private key (testnet) or the Turnkey config."
-        );
-      }
-      walletRef.current = w;
-    }
-    return walletRef.current;
   }, [config]);
 
   // --- Formatting helpers --------------------------------------------------
@@ -453,19 +496,38 @@ export function useAnte(override?: Partial<AnteConfig>): UseAnte {
     [getPublicClient, moderatorOverride, anteAddress]
   );
 
+  // Sync the passkey-derived address into hook state. The dev path sets its
+  // address synchronously in connect()/the write preambles, so this effect is a
+  // no-op there (and must not clobber the dev address with the passkey's).
+  useEffect(() => {
+    if (devWallet) return;
+    setAddress(passkey.address ?? null);
+  }, [devWallet, passkey.address]);
+
+  // Refresh moderator status once per connected address, for BOTH paths.
+  // Keying on the `address` state (rather than doing it inline in each connect
+  // call site) keeps the single source of truth and avoids referencing
+  // refreshModerator before its declaration in the render body.
+  useEffect(() => {
+    void refreshModerator(address);
+  }, [address, refreshModerator]);
+
   const connect = useCallback(async () => {
     setError(null);
     try {
-      const w = getWallet();
-      const addr = await w.connect();
-      setAddress(addr);
-      setWalletKind(w.kind);
-      void refreshModerator(addr);
+      if (devWallet) {
+        const addr = await devWallet.connect();
+        setAddress(addr); // moderator refresh follows via the address effect
+      } else {
+        // Passkey path: the sync effect above lands the address (and thus the
+        // moderator refresh) once the connector reports the connected account.
+        await passkey.connect();
+      }
     } catch (e) {
       setError(errMsg(e));
       throw e;
     }
-  }, [getWallet, refreshModerator]);
+  }, [devWallet, passkey]);
 
   // --- ERC-20 approve handling --------------------------------------------
 
@@ -486,29 +548,25 @@ export function useAnte(override?: Partial<AnteConfig>): UseAnte {
       })) as bigint;
       if (current >= needed) return; // skip approve — already sufficient
 
-      const w = getWallet();
       const data = encodeFunctionData({
         abi: erc20Abi,
         functionName: "approve",
         args: [anteAddress, MAX_UINT256],
       });
-      const hash = await w.signAndSend({ to: tokenAddress, data });
+      const hash = await signer.sendTx({ to: tokenAddress, data });
       await pc.waitForTransactionReceipt({ hash });
     },
-    [getPublicClient, getWallet, tokenAddress, anteAddress]
+    [getPublicClient, signer, tokenAddress, anteAddress]
   );
 
   // --- Writes --------------------------------------------------------------
 
   const post = useCallback(
     async (content: string, humanStake: string): Promise<Hash> => {
-      const w = getWallet();
-      const owner = w.getAddress() ?? (await w.connect());
-      setAddress(owner);
-      setWalletKind(w.kind);
-      void refreshModerator(owner);
+      let from = signer.address;
+      if (!from) from = (await signer.connect()) ?? requireConnected();
       const stake = parse(humanStake);
-      await ensureAllowance(owner, stake);
+      await ensureAllowance(from, stake);
       const data = encodeFunctionData({
         abi: anteAbi,
         functionName: "post",
@@ -516,18 +574,17 @@ export function useAnte(override?: Partial<AnteConfig>): UseAnte {
         // comment to this thread (ZERO_TOPIC = global feed when none supplied).
         args: [topic, stake, content],
       });
-      const hash = await w.signAndSend({ to: anteAddress, data });
+      const hash = await signer.sendTx({ to: anteAddress, data });
       await getPublicClient().waitForTransactionReceipt({ hash });
       await loadComments();
       return hash;
     },
     [
-      getWallet,
+      signer,
       parse,
       ensureAllowance,
       getPublicClient,
       loadComments,
-      refreshModerator,
       anteAddress,
       topic,
     ]
@@ -535,103 +592,94 @@ export function useAnte(override?: Partial<AnteConfig>): UseAnte {
 
   const withdraw = useCallback(
     async (id: bigint): Promise<Hash> => {
-      const w = getWallet();
-      if (!w.getAddress()) await w.connect();
+      if (!signer.address) {
+        if (!(await signer.connect())) requireConnected();
+      }
       const data = encodeFunctionData({
         abi: anteAbi,
         functionName: "withdraw",
         args: [id],
       });
-      const hash = await w.signAndSend({ to: anteAddress, data });
+      const hash = await signer.sendTx({ to: anteAddress, data });
       await getPublicClient().waitForTransactionReceipt({ hash });
       await loadComments();
       return hash;
     },
-    [getWallet, getPublicClient, loadComments, anteAddress]
+    [signer, getPublicClient, loadComments, anteAddress]
   );
 
   const tip = useCallback(
     async (id: bigint, humanAmount: string): Promise<Hash> => {
-      const w = getWallet();
-      const owner = w.getAddress() ?? (await w.connect());
-      setAddress(owner);
-      setWalletKind(w.kind);
-      void refreshModerator(owner);
+      let from = signer.address;
+      if (!from) from = (await signer.connect()) ?? requireConnected();
       const amount = parse(humanAmount);
       if (amount <= 0n) throw new Error("Tip amount must be greater than zero.");
-      await ensureAllowance(owner, amount);
+      await ensureAllowance(from, amount);
       const data = encodeFunctionData({
         abi: anteAbi,
         functionName: "tip",
         args: [id, amount],
       });
-      const hash = await w.signAndSend({ to: anteAddress, data });
+      const hash = await signer.sendTx({ to: anteAddress, data });
       await getPublicClient().waitForTransactionReceipt({ hash });
       await loadComments();
       return hash;
     },
     [
-      getWallet,
+      signer,
       parse,
       ensureAllowance,
       getPublicClient,
       loadComments,
-      refreshModerator,
       anteAddress,
     ]
   );
 
   const flag = useCallback(
     async (id: bigint, humanBond: string, reason: string): Promise<Hash> => {
-      const w = getWallet();
-      const owner = w.getAddress() ?? (await w.connect());
-      setAddress(owner);
-      setWalletKind(w.kind);
-      void refreshModerator(owner);
+      let from = signer.address;
+      if (!from) from = (await signer.connect()) ?? requireConnected();
       // Flagging is now staked: bond the token like post(), so approve first.
       const bond = parse(humanBond);
       if (bond <= 0n) throw new Error("Flag bond must be greater than zero.");
-      await ensureAllowance(owner, bond);
+      await ensureAllowance(from, bond);
       const data = encodeFunctionData({
         abi: anteAbi,
         functionName: "flag",
         args: [id, bond, reason],
       });
-      const hash = await w.signAndSend({ to: anteAddress, data });
+      const hash = await signer.sendTx({ to: anteAddress, data });
       await getPublicClient().waitForTransactionReceipt({ hash });
       await loadComments();
       return hash;
     },
     [
-      getWallet,
+      signer,
       parse,
       ensureAllowance,
       getPublicClient,
       loadComments,
-      refreshModerator,
       anteAddress,
     ]
   );
 
   const resolveFlag = useCallback(
     async (id: bigint, uphold: boolean, reason: string): Promise<Hash> => {
-      const w = getWallet();
-      const owner = w.getAddress() ?? (await w.connect());
-      setAddress(owner);
-      setWalletKind(w.kind);
-      void refreshModerator(owner);
+      if (!signer.address) {
+        if (!(await signer.connect())) requireConnected();
+      }
       // Moderator-only on-chain; the wallet must be a moderator or this reverts.
       const data = encodeFunctionData({
         abi: anteAbi,
         functionName: "resolveFlag",
         args: [id, uphold, reason],
       });
-      const hash = await w.signAndSend({ to: anteAddress, data });
+      const hash = await signer.sendTx({ to: anteAddress, data });
       await getPublicClient().waitForTransactionReceipt({ hash });
       await loadComments();
       return hash;
     },
-    [getWallet, getPublicClient, loadComments, refreshModerator, anteAddress]
+    [signer, getPublicClient, loadComments, anteAddress]
   );
 
   return useMemo(
@@ -689,6 +737,19 @@ export function useAnte(override?: Partial<AnteConfig>): UseAnte {
 function errMsg(e: unknown): string {
   if (e instanceof Error) return e.message;
   return String(e);
+}
+
+/**
+ * Thrown when a write is attempted but no connected address is available even
+ * after `connect()` — e.g. the passkey ceremony was dismissed, or the
+ * connector reported connected without an account. Callers surface the message.
+ * Narrowed to `never` so it can back a `?? requireConnected()` fallthrough that
+ * type-checks as `Address`.
+ */
+function requireConnected(): never {
+  throw new Error(
+    "Wallet not connected. Connect your passkey and try again."
+  );
 }
 
 // --- Incremental fold helpers (module-level, pure) -------------------------

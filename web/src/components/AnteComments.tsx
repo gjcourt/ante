@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Address } from "viem";
 import { useAnte, type AnteComment, type CommentStatus } from "../hooks/useAnte";
+import type { WalletKind } from "../wallet";
 import "./AnteComments.css";
 
 // ---------------------------------------------------------------------------
@@ -42,11 +43,14 @@ export function AnteComments() {
             with a bounty if upheld, forfeited if not.
           </p>
         </div>
-        <WalletBadge
-          address={address}
-          kind={walletKind}
-          onConnect={() => void connect().catch(() => {})}
-        />
+        <div className="ante__wallet-col">
+          <WalletBadge
+            address={address}
+            kind={walletKind}
+            onConnect={() => void connect().catch(() => {})}
+          />
+          <PasskeyCaveat />
+        </div>
       </header>
 
       {!configured && (
@@ -109,14 +113,14 @@ function WalletBadge({
   onConnect,
 }: {
   address: Address | null;
-  kind: "dev" | "turnkey" | null;
+  kind: WalletKind | null;
   onConnect: () => void;
 }) {
   if (address) {
     return (
       <div className="ante__wallet" title={address}>
         <span className="ante__dot" />
-        {kind === "turnkey" ? "Passkey" : "Dev key"} · {shortAddr(address)}
+        {kind === "passkey" ? "Passkey" : "Dev key"} · {shortAddr(address)}
       </div>
     );
   }
@@ -124,6 +128,24 @@ function WalletBadge({
     <button className="ante__btn ante__btn--ghost" onClick={onConnect}>
       Connect wallet
     </button>
+  );
+}
+
+// Always-visible passkey caveat. Covers BOTH binding axes plus the
+// standalone≠embed realm boundary (§1/§3): the DOMAIN axis (a passkey is scoped
+// to this site's registrable domain, so a stake here is invisible on any other
+// Ante surface, including the standalone app) AND the DEVICE/authenticator axis
+// (it lives on this device, or wherever the platform syncs the passkey). The
+// substrings "tied to this site", "separate from any other Ante site", "only on
+// this device", and "where this passkey" satisfy the rewording-proof grep gate.
+function PasskeyCaveat() {
+  return (
+    <p className="ante__passkey-caveat">
+      Your passkey and staked funds are tied to this site (separate from any
+      other Ante site, including the standalone app) and exist only on this
+      device (or wherever this passkey is synced). They cannot be recovered from
+      another domain, or if this passkey is lost.
+    </p>
   );
 }
 

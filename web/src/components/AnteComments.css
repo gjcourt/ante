@@ -69,6 +69,23 @@
   background: var(--ante-active);
 }
 
+/* Wallet controls column + passkey fine-print (webAuthn refactor) */
+.ante__wallet-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+}
+
+.ante__passkey-caveat {
+  margin: 0;
+  max-width: 46ch;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--ante-muted);
+  text-align: right;
+}
+
 /* Banners */
 .ante__banner {
   padding: 10px 12px;

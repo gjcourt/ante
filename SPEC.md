@@ -1,13 +1,13 @@
 # Ante — pseudonymous pay-to-comment with stake-and-slash on Tempo
 
-**One-line:** To comment, you post a small refundable **stablecoin stake** on the Tempo chain. Good comments get the stake back (and can earn tips). Flagged-and-upheld comments get the stake **slashed**. No account, no real identity — just a passkey-backed embedded wallet. The bond is the reputation system, priced in dollars instead of karma points.
+**One-line:** To comment, you post a small refundable **stablecoin stake** on the Tempo chain. Good comments get the stake back (and can earn tips). Flagged-and-upheld comments get the stake **slashed**. No account, no real identity — just a pseudonymous passkey wallet (Tempo's official wagmi webAuthn connector, backendless). The bond is the reputation system, priced in dollars instead of karma points.
 
 This is the shared spec. Three workstreams build against it in parallel, partitioned by directory so they never touch the same files:
 
 | Dir | Owner | What |
 |---|---|---|
 | `contracts/` | contract agent | Foundry project: `Ante.sol` + tests + deploy script |
-| `web/` | frontend agent | Vite + React + TS comment widget with embedded wallet |
+| `web/` | frontend agent | Vite + React + TS comment widget with a passkey wallet (wagmi webAuthn) |
 | `docs/` | research agent | `tempo-facts.md` (verified live chain/wallet config) |
 
 **Hard rules for all agents:** Do NOT run `git init` or commit anything (root is intentionally non-git for now). Self-verify your work by building/testing. If a live fact is unknown, leave a clearly-marked `TODO(facts)` and flag it in your summary — do not invent RPC URLs, token addresses, or chain IDs.
@@ -17,8 +17,8 @@ This is the shared spec. Three workstreams build against it in parallel, partiti
 ## Design axes (context)
 
 - **Sybil resistance = proof-of-stake (economic), not identity.** A funded wallet can post; throwaways are penalized by losing the stake. No personhood proof, no KYC. Good enough for a blog; ZK personhood is a later upgrade.
-- **Anonymity = pseudonymous wallet.** The contract only ever sees an address. The address is a passkey-backed embedded wallet (Turnkey), so the reader never installs MetaMask, never writes a seed phrase, and never reveals who they are.
-- **Why Tempo:** stablecoin-denominated gas (no volatile gas token), sub-millidollar fees, sub-second finality, embedded-wallet + passkey tooling, and optional fee sponsorship. It's purpose-built for exactly this micropayment pattern.
+- **Anonymity = pseudonymous wallet.** The contract only ever sees an address. The address is a passkey wallet via Tempo's official wagmi **webAuthn** connector — backendless (the WebAuthn ceremony runs client-side, scoped to the origin's registrable domain; no API keys, no signup, no relay) — so the reader never installs MetaMask, never writes a seed phrase, and never reveals who they are. The address is derived from the credential, so returning to the same site on the same device recovers the same address (and stake).
+- **Why Tempo:** stablecoin-denominated gas (no volatile gas token), sub-millidollar fees, sub-second finality, native wagmi passkey/webAuthn tooling, and optional fee sponsorship. It's purpose-built for exactly this micropayment pattern.
 
 ---
 
@@ -31,7 +31,7 @@ Solidity, Foundry, OpenZeppelin (`SafeERC20`, `ReentrancyGuard`, `Ownable`). The
 enum Status { Active, Withdrawn, Slashed }
 
 struct Comment {
-    address author;     // pseudonymous embedded-wallet address
+    address author;     // pseudonymous passkey-wallet address
     uint96  stake;      // staked amount (token's smallest unit)
     uint64  postedAt;   // block.timestamp at post
     Status  status;
@@ -113,11 +113,11 @@ Optimistic challenge: a flagger posts a counter-stake; moderator resolution pays
 
 ## Frontend — `web/`
 
-Vite + React + TypeScript. Wallet/onchain via **viem** (and Turnkey embedded wallet — see below). A single embeddable comment widget plus a small demo page that mounts it.
+Vite + React + TypeScript. Onchain via **viem**; the passkey wallet via **wagmi** + Tempo's webAuthn connector (see below). A single embeddable comment widget plus a small demo page that mounts it.
 
-### Wallet: passkey-backed embedded wallet (Turnkey)
-- Use Turnkey's embedded-wallet flow (passkey / WebAuthn) so the user signs in with Face ID / Touch ID and gets a wallet with no extension and no seed phrase. Follow Turnkey's official Tempo example/docs (the research agent will drop verified setup notes into `docs/tempo-facts.md`).
-- **Pragmatic fallback (required so the app runs end-to-end today):** behind a single `WalletProvider` interface, implement the real Turnkey passkey path AND a dev fallback using a viem local account from a `VITE_DEV_PRIVATE_KEY` env var (testnet only). The UI must work end-to-end on testnet via the fallback even if the full Turnkey passkey wiring is incomplete. Keep the seam clean: `getAddress()`, `signAndSend(tx)`, `connect()`.
+### Wallet: passkey via Tempo's official wagmi webAuthn connector
+- Use Tempo's official wagmi **webAuthn** connector (`webAuthn` from `wagmi/tempo`, provided by the `accounts` SDK) so the user signs in with Face ID / Touch ID and gets a wallet with no extension and no seed phrase. It is **backendless** — the WebAuthn ceremony runs client-side, scoped to the origin's registrable domain; no API keys, no signup, no `authUrl`. Wire it through an `AnteWeb3Provider` that builds a runtime wagmi `Config` from `AnteConfig` (chain selected by network, `http(rpcUrl)` transport, the single `webAuthn()` connector). Read connection state via standard wagmi hooks (`useAccount`, `useConnect`, `useWalletClient` / `useSendTransactionSync`). (`Hooks`/`Actions` namespaces also exist in `wagmi/tempo` for Tempo protocol helpers, but Ante's arbitrary contract writes do not use them.)
+- **Pragmatic fallback (required so the app runs end-to-end today):** a dev fallback using a viem local account from a `VITE_DEV_PRIVATE_KEY` env var (testnet only), selected whenever the key is set. The UI must work end-to-end on testnet via the fallback even if a passkey ceremony is unavailable (e.g. CI). Both paths satisfy one stable seam — `{ address, sendTx({to,data,value}) }` — so every write is identical regardless of which wallet is active.
 
 ### Chain config — `web/src/config/chain.ts`
 A viem `Chain` definition for Tempo testnet + the stake-token address + the deployed `Ante` address. Use `TODO(facts)` placeholders for any value the research agent hasn't verified yet; read overridable values from `import.meta.env` (`VITE_RPC_URL`, `VITE_ANTE_ADDRESS`, `VITE_TOKEN_ADDRESS`, `VITE_CHAIN_ID`).
@@ -136,7 +136,7 @@ A viem `Chain` definition for Tempo testnet + the stake-token address + the depl
 
 ### Deliverables (frontend agent)
 - `web/` Vite React-TS app that `npm install` + `npm run build` cleanly (no type errors).
-- `WalletProvider` (Turnkey + dev fallback), `chain.ts`, `useAnte` hook (reads/writes via viem against the SPEC ABI — hand-write a minimal ABI matching the signatures above; integration will swap in the compiled `web/src/abi/Ante.json` if present), the `<AnteComments/>` widget, and a demo `App.tsx` mounting it.
+- The wallet layer (`AnteWeb3Provider` + `usePasskeyWallet` for the wagmi webAuthn passkey, plus the `DevWalletProvider` dev fallback), `chain.ts`, `useAnte` hook (reads/writes via viem against the SPEC ABI — hand-write a minimal ABI matching the signatures above; integration will swap in the compiled `web/src/abi/Ante.json` if present), the `<AnteComments/>` widget, and a demo `App.tsx` mounting it.
 - `web/.env.example` documenting every `VITE_*` var.
 - `web/README.md` — run/build instructions and the env vars.
 
@@ -144,11 +144,11 @@ A viem `Chain` definition for Tempo testnet + the stake-token address + the depl
 
 ## Research — `docs/tempo-facts.md`
 
-Verify against **live** docs (`docs.tempo.xyz`, Turnkey docs, Alchemy/Chainstack Tempo pages). Produce a concise facts sheet the other two consume. Required fields (mark anything unverifiable as `UNKNOWN — needs manual check`, never guess):
+Verify against **live** docs (`docs.tempo.xyz`, `wagmi.sh/tempo`, `accounts.tempo.xyz`, Alchemy/Chainstack Tempo pages). Produce a concise facts sheet the other two consume. Required fields (mark anything unverifiable as `UNKNOWN — needs manual check`, never guess):
 - Tempo **testnet**: network name, chain ID, RPC URL(s), block explorer URL, faucet URL, native/fee model (confirm stablecoin-gas, no native token).
 - Testnet **stablecoin / TIP-20** token: address + decimals + symbol to use for stakes (or how to deploy/mint a test token if none canonical).
 - A ready-to-paste **viem `Chain` definition** for Tempo testnet.
-- **Turnkey** embedded-wallet + passkey setup for Tempo: the minimal steps, required SDK packages, whether a backend proxy is needed for the parent-org API key, and a link to the official `with-tempo` example. If a backend is required, describe the smallest one.
+- **Passkey wallet** setup for Tempo: Tempo's official wagmi **webAuthn** connector (`webAuthn` from `wagmi/tempo`, provided by the `accounts` SDK), the required packages (`accounts`, `wagmi`, `@tanstack/react-query`, `viem >= 2.43.3`), that it is backendless (client-side WebAuthn ceremony, no API keys, no `authUrl` by default), the send-transaction primitive, the connection hooks, and the default `rpId` scope.
 - **Fee sponsorship**: whether/how an app can sponsor the user's gas on Tempo testnet (paymaster-style), with the relevant API/contract if documented.
 - Any EVM differences (Osaka hardfork notes) that affect a simple staking contract or viem usage.
 

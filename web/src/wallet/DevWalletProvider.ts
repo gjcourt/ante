@@ -8,18 +8,25 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { makeChain, type AnteConfig } from "../config/chain";
-import type { AnteTxRequest, WalletProvider } from "./WalletProvider";
+
+/**
+ * Canonical wallet-kind label for the active signing backend. Lives here (the
+ * module that owns the dev kind) as the single source of truth; the passkey
+ * path reports "passkey". Re-exported through `wallet/index.ts`.
+ */
+export type WalletKind = "dev" | "passkey";
 
 /**
  * Dev fallback wallet: a viem local account derived from a private key in the
  * runtime config (`devPrivateKey`, seeded from `VITE_DEV_PRIVATE_KEY`). Testnet
- * only — this is the path that makes the app run end-to-end today, before the
- * Turnkey passkey wiring is complete.
+ * only — this is the local-dev path that makes the app run end-to-end without a
+ * passkey ceremony. The production path is the Tempo wagmi webAuthn connector
+ * (see `usePasskeyWallet`); this is selected only when `devPrivateKey` is set.
  *
  * NEVER ship a real key this way; it is bundled into the client. Intended only
  * for a throwaway testnet account funded from the faucet.
  */
-export class DevWalletProvider implements WalletProvider {
+export class DevWalletProvider {
   readonly kind = "dev" as const;
 
   private client: WalletClient | null = null;
@@ -68,7 +75,11 @@ export class DevWalletProvider implements WalletProvider {
     return this.client;
   }
 
-  async signAndSend(tx: AnteTxRequest): Promise<Hash> {
+  async signAndSend(tx: {
+    to: `0x${string}`;
+    data: `0x${string}`;
+    value?: bigint;
+  }): Promise<Hash> {
     if (!this.client || !this.client.account) {
       throw new Error("DevWalletProvider not connected; call connect() first.");
     }
