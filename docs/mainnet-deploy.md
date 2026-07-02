@@ -1,5 +1,29 @@
 # Mainnet Deploy Checklist
 
+## ✅ DEPLOYED — 2026-07-01
+
+Ante is live on **Tempo mainnet** (chain `4217`). Verified on-chain.
+
+| Field | Value |
+|---|---|
+| **Ante contract** | `0x547C52db2555e5d6c33f0C2715380D0cceE19676` |
+| **Deploy block** | `27964854` |
+| **Deploy tx** | `0xe88cf7183e6e8854731a6de1ed2f333dec552d2956b2c86cd572c2ef00079790` |
+| owner / treasury / moderator | `0x84961DAC4F7Fa4E11fed4c70E31f50EeB76f0c4f` (keystore `ante-deployer`) |
+| stakeToken | pathUSD `0x20c0…0000` (6dp) |
+| minStake | `250000` ($0.25) |
+| challengeWindow | `604800` (7 days) |
+| Deploy cost | ~$0.32 pathUSD |
+
+Frontend `web/.env.local` wired to mainnet (dev key intentionally blank — see file).
+The blog embed (`ante.js`) is chain-agnostic (config via HTML attributes), so **no rebuild
+needed**; mainnet values go in burntbytes `[params.ante]`. Mainnet RPC CORS = `*` (no proxy).
+
+Remaining: burntbytes `[params.ante]` → mainnet values + merge PR #3 + `comments: true`;
+then the blog-post grounding section.
+
+---
+
 Deploying `Ante.sol` to **Tempo mainnet** (chain `4217`, RPC `https://rpc.tempo.xyz`).
 Prior deploys were testnet-only (Moderato, chain `42431`). This is real money — go slowly,
 double-check every address, and prefer a small test transfer before the full one.
