@@ -74,10 +74,15 @@ export function usePasskeyWallet(): PasskeyWallet {
     // finds no credential and drops to the browser's phone/security-key
     // fallback. wagmi forwards unknown connect params straight to the
     // connector, so `capabilities` threads through to `wallet_connect`.
+    // wagmi's typed connect variables omit `capabilities`, but the Tempo
+    // connector reads it and wagmi forwards unknown params to `connect` at
+    // runtime (`const { connector: _, ...rest } = parameters`). Cast to pass it
+    // without widening the public surface. Confirmed on-chain: this registers /
+    // reuses the passkey and the staked write goes through.
     await connectAsync({
       connector,
       capabilities: { method: "register", name: "Ante" },
-    });
+    } as Parameters<typeof connectAsync>[0]);
   }, [connectAsync, connector]);
 
   const disconnect = useCallback(async (): Promise<void> => {
