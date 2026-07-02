@@ -67,7 +67,17 @@ export function usePasskeyWallet(): PasskeyWallet {
         "Passkey connector unavailable — is <AnteWeb3Provider> mounted?"
       );
     }
-    await connectAsync({ connector });
+    // "Sign in or sign up" in one step. The `register` capability makes the
+    // Provider CREATE a passkey on first use (the Touch ID *create* ceremony)
+    // and REUSE the existing one on return (it matches a stored account by
+    // label). Without it, connect does a bare login/get, which on a first visit
+    // finds no credential and drops to the browser's phone/security-key
+    // fallback. wagmi forwards unknown connect params straight to the
+    // connector, so `capabilities` threads through to `wallet_connect`.
+    await connectAsync({
+      connector,
+      capabilities: { method: "register", name: "Ante" },
+    });
   }, [connectAsync, connector]);
 
   const disconnect = useCallback(async (): Promise<void> => {

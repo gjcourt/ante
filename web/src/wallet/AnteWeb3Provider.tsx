@@ -2,7 +2,6 @@ import {
   WagmiProvider,
   createConfig,
   http,
-  useAccount,
   useReconnect,
   type Config,
 } from "wagmi";
@@ -12,6 +11,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactElement,
   type ReactNode,
@@ -68,26 +68,29 @@ function makeWagmiConfig(config: AnteConfig): Config {
 }
 
 /**
- * Fires a SILENT reconnect at mount to rehydrate a prior same-origin session's
- * address from storage WITHOUT a WebAuthn ceremony. Gated on connection status:
- * only reconnect when `status === "disconnected"`, so re-invocation (StrictMode
- * double-mount, N roots) is a no-op — a naive `useRef` boolean still double-fires
- * under StrictMode mount→unmount→mount, so we gate on wagmi's own status instead.
+ * Fires a SILENT reconnect ONCE at mount to rehydrate a prior same-origin
+ * session's address from storage WITHOUT a WebAuthn ceremony.
  *
- * Must be rendered INSIDE <WagmiProvider> (it uses wagmi hooks).
+ * We attempt exactly once via a ref guard, NOT gated on connection status. An
+ * earlier status-gated version (`if (status === "disconnected") reconnect()`)
+ * infinite-looped on every fresh visit: with no session to restore, reconnect()
+ * bounces status disconnected → reconnecting → disconnected, which re-fired the
+ * effect and called reconnect() again forever, pegging the main thread. Firing
+ * once decouples us from that bounce. A StrictMode double-mount re-runs it once
+ * more, which is a harmless no-op (reconnect is idempotent when nothing stored).
+ *
+ * Must be rendered INSIDE <WagmiProvider> (it uses wagmi hooks). No OS dialog
+ * fires on mount — reconnect rehydrates the address silently.
  */
 function SilentReconnect(): null {
   const { reconnect } = useReconnect();
-  const { status } = useAccount();
+  const attempted = useRef(false);
 
   useEffect(() => {
-    if (status === "disconnected") {
-      reconnect();
-    }
-    // `reconnect` is stable; the `status` gate prevents re-firing once
-    // connecting/connected, so StrictMode double-mount and N roots are no-ops.
-    // No OS dialog fires on mount (reconnect rehydrates the address silently).
-  }, [status, reconnect]);
+    if (attempted.current) return;
+    attempted.current = true;
+    reconnect();
+  }, [reconnect]);
 
   return null;
 }

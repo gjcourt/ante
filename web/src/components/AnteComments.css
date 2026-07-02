@@ -86,6 +86,22 @@
   text-align: right;
 }
 
+.ante__copy {
+  margin-left: 4px;
+  padding: 0 4px;
+  border: none;
+  background: transparent;
+  color: var(--ante-muted);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  border-radius: 4px;
+}
+.ante__copy:hover {
+  color: inherit;
+  background: var(--ante-border);
+}
+
 /* Banners */
 .ante__banner {
   padding: 10px 12px;

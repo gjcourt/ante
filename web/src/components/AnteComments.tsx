@@ -116,11 +116,29 @@ function WalletBadge({
   kind: WalletKind | null;
   onConnect: () => void;
 }) {
+  const [copied, setCopied] = useState(false);
   if (address) {
     return (
       <div className="ante__wallet" title={address}>
         <span className="ante__dot" />
         {kind === "passkey" ? "Passkey" : "Dev key"} · {shortAddr(address)}
+        <button
+          type="button"
+          className="ante__copy"
+          aria-label="Copy full address"
+          title={copied ? "Copied" : "Copy full address"}
+          onClick={() => {
+            void navigator.clipboard?.writeText(address).then(
+              () => {
+                setCopied(true);
+                window.setTimeout(() => setCopied(false), 1200);
+              },
+              () => {}
+            );
+          }}
+        >
+          {copied ? "✓" : "⧉"}
+        </button>
       </div>
     );
   }
