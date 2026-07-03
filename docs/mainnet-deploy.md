@@ -13,7 +13,12 @@ Ante is live on **Tempo mainnet** (chain `4217`). Verified on-chain.
 | stakeToken | pathUSD `0x20c0…0000` (6dp) |
 | minStake | `250000` ($0.25) |
 | challengeWindow | `604800` (7 days) |
+| tipFeeBps | `1000` (10% — venue/creator cut → treasury; set 2026-07-02, tx `0x11de7760…`) |
 | Deploy cost | ~$0.32 pathUSD |
+
+Post-deploy owner change: `tipFeeBps` set from 0 → **1000 (10%)** via `setTipFeeBps(1000)`
+(a tip splits 90% to the commenter, 10% to the treasury = the blog author, justified as a
+venue cut). Testnet contract `0x353D…1345` set to match (tx `0x435dcab4…`).
 
 Frontend `web/.env.local` wired to mainnet (dev key intentionally blank — see file).
 The blog embed (`ante.js`) is chain-agnostic (config via HTML attributes), so **no rebuild
