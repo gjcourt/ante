@@ -21,8 +21,21 @@ import baseCss from "../index.css?inline";
 //
 // Why a web component (not an iframe)? WebAuthn / passkeys are BLOCKED in
 // cross-origin iframes. A custom element runs in the host page's top-level
-// origin, so the Turnkey passkey flow works. The shadow root still gives us CSS
-// isolation without the cross-origin penalty.
+// origin, so the Tempo passkey (WebAuthn) flow works. The shadow root still
+// gives us CSS isolation without the cross-origin penalty.
+//
+// State invariants (see docs/plans/passkey-refactor.md §3 / §9 items 6–8):
+//   - attributeChangedCallback → render() is SAFE for an ante-address /
+//     token-address / topic change: the element and its React root are stable,
+//     and the wagmi Config is memoised on chainId/rpcUrl only, so the
+//     WagmiProvider (and any live passkey connection) is NOT torn down.
+//   - A chain-id / rpc-url change DOES rebuild the Config (new network) and
+//     tears down the old connection — intended.
+//   - A DOM move that remounts the React root (disconnectedCallback →
+//     queueMicrotask unmount → reconnect) RESETS in-memory wallet connection
+//     state. The origin-scoped storage + silent reconnect re-hydrate the
+//     address on remount with no new OS dialog. An in-flight ceremony does NOT
+//     survive a remount — that is out of scope.
 // ---------------------------------------------------------------------------
 
 const TAG = "ante-comments";

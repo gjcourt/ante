@@ -26,7 +26,7 @@ Live on the **Tempo testnet (Moderato)**: [`0x353D262c31fEb296FF468905AA5C4dA59B
 
 **Symmetric skin-in-the-game.** Speaking *and* accusing both require a bond, so grief-flagging is as costly as bad commenting. Staking disciplines *who flags*; a moderator still adjudicates *who's right* (correct for a personal blog — you don't decentralize the moderation of your own comment section). Forfeited bonds + slash remainders accrue to the treasury, which can fund Tempo's gas-sponsor account.
 
-Sybil resistance is **economic** (you can post, but throwaways lose money), not identity-based. Anonymity is via a **pseudonymous, passkey-backed wallet** — no seed phrase, no account. ZK proof-of-personhood is a documented future upgrade.
+Sybil resistance is **economic** (you can post, but throwaways lose money), not identity-based. Anonymity is via a **pseudonymous passkey wallet** — Tempo's official wagmi webAuthn connector, backendless (a client-side WebAuthn ceremony, no API keys, no signup), with no seed phrase and no account. ZK proof-of-personhood is a documented future upgrade.
 
 ### Why a *bond*, not a charge
 
@@ -37,8 +37,7 @@ A toll (pay to comment, keep the money) prices *speech*: it taxes your best cont
 | Dir | What | Status |
 |---|---|---|
 | [`contracts/`](./contracts) | Foundry: `Ante.sol`, mocks, tests, deploy + local-e2e scripts | **52/52 tests pass**; full lifecycle verified on a live node, deployed to Tempo testnet |
-| [`web/`](./web) | Vite + React + TS comment widget **and** a `<ante-comments>` web component (shadow DOM) | builds clean; incremental IndexedDB feed sync; passkey/dev wallet |
-| [`server/`](./server) | Minimal Turnkey passkey backend (sub-org + wallet) | typechecks + boots; passkey wiring needs creds |
+| [`web/`](./web) | Vite + React + TS comment widget **and** a `<ante-comments>` web component (shadow DOM) | builds clean; incremental IndexedDB feed sync; backendless passkey wallet (Tempo wagmi webAuthn) + dev-key fallback |
 | [`docs/`](./docs) | `tempo-facts.md` (verified chain/wallet config), `security-review.md` | — |
 
 Key design docs: [**SPEC.md**](./SPEC.md) (full mechanism), [**web/EMBEDDING.md**](./web/EMBEDDING.md) (embedding on a site), [**docs/security-review.md**](./docs/security-review.md).
@@ -60,11 +59,12 @@ make cors-check  # confirm the RPC allows browser calls (for embedding)
 ```bash
 cd web
 cp .env.example .env.local
-# set VITE_ANTE_ADDRESS (the deployed address), VITE_DEPLOY_BLOCK, and a
-# throwaway testnet VITE_DEV_PRIVATE_KEY (or wire the Turnkey passkey vars)
+# set VITE_ANTE_ADDRESS (the deployed address) and VITE_DEPLOY_BLOCK.
+# For a wallet: use a passkey (default, no env) or set a throwaway testnet
+# VITE_DEV_PRIVATE_KEY for the dev-key fallback.
 npm install && npm run dev          # → http://localhost:5173
 ```
-The Tempo testnet RPC, chain id (`42431`), and pathUSD token are baked in as defaults — you only need the Ante address and a wallet.
+The Tempo testnet RPC, chain id (`42431`), and pathUSD token are baked in as defaults — you only need the Ante address. The passkey wallet is backendless and needs no configuration; the dev key is an optional testnet fallback.
 
 ## Deploy your own
 
@@ -96,7 +96,7 @@ The chain is the source of truth; everything else is a rebuildable read model.
 
 - **On-chain** — escrow/status in contract storage; comment text in the `Posted` event (`keccak256(content)` anchors integrity).
 - **Now (serverless)** — the frontend folds the comment feed from logs and caches it in **IndexedDB** with **incremental sync**: a returning visitor only fetches the blocks since their last visit (chunked to respect RPC `eth_getLogs` limits).
-- **Later** — a small indexer (e.g. Ponder, co-located with `server/`) when volume outgrows client-side scanning; it also becomes a durable, *authenticated* content store. Content can move to IPFS/Arweave with no contract change (emit a URI; the on-chain hash still proves integrity).
+- **Later** — a small indexer (e.g. Ponder) when volume outgrows client-side scanning; it also becomes a durable, *authenticated* content store. Content can move to IPFS/Arweave with no contract change (emit a URI; the on-chain hash still proves integrity).
 
 ## Security
 
@@ -104,7 +104,6 @@ The contract was hardened after an adversarial review — see [`docs/security-re
 
 ## Roadmap
 
-- **Turnkey passkey path** — backend scaffold exists; needs parent-org creds + client-side WebAuthn registration wired through the `WalletProvider` seam.
 - **Resolution timeout** — auto-reject if a moderator never rules, so a `Challenged` comment can't strand the author's stake (liveness note in `SPEC.md`).
 - **Indexer** — when a feed outgrows client-side log scanning.
 - **Variable-stake confidence signal** — surfaced quietly today; a richer treatment is a follow-up.

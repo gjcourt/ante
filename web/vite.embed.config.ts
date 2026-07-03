@@ -37,7 +37,7 @@ export default defineConfig({
     rollupOptions: {
       // Self-contained: bundle React et al. (no externals).
       output: {
-        // Keep everything in one file; inline any dynamic imports (Turnkey SDK).
+        // Keep everything in one file; inline any dynamic imports.
         inlineDynamicImports: true,
       },
     },

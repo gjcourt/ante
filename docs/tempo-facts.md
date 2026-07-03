@@ -20,8 +20,8 @@
 | Fee model | ✅ VERIFIED | No native gas token; gas paid in TIP-20 stablecoins |
 | Stake token (test stablecoin) | ✅ VERIFIED | pathUSD `0x20c0…0000`, **6 decimals** |
 | viem Chain def | ✅ VERIFIED | see code block (built from verified values) |
-| Turnkey embedded wallet | ✅ VERIFIED | adapter exists; official `with-tempo` example linked |
-| Turnkey backend proxy needed? | ⚠️ PARTIAL | passkey login needs Turnkey **Auth Proxy** (hosted) + server for sub-org create; sponsorship needs a fee-payer backend. See §4/§5. |
+| Passkey wallet | ✅ VERIFIED | Tempo's official wagmi **webAuthn** connector (`webAuthn` from `wagmi/tempo`, via the `accounts` SDK). See §4. |
+| Passkey backend needed? | ✅ VERIFIED | **No** — backendless: client-side WebAuthn ceremony, no API keys, no signup, no `authUrl` by default. Only the RPC is contacted. See §4. |
 | Fee sponsorship / paymaster | ✅ VERIFIED | Native fee-payer; public testnet sponsor service |
 | EVM differences (Osaka) | ✅ VERIFIED | see §6 |
 | Exact decimals (8 vs 18 rumors) | ✅ VERIFIED | **6** — confirmed by TIP-20 spec + Chainstack |
@@ -29,7 +29,7 @@
 **UNKNOWNs to flag to build agents:**
 - Deployed `Ante` contract address — N/A until contract agent deploys (use `VITE_ANTE_ADDRESS`).
 - Whether `eth_getLogs` block-range limits apply on the public RPC — `UNKNOWN — needs manual check` (test against the endpoint).
-- Exact Turnkey sub-org creation flow / whether Auth Proxy config covers Tempo out of the box — adapter is documented but the page self-flags as incomplete. Treat the dev-fallback (local private key) as the guaranteed path; Turnkey passkey path is real but verify against the live example.
+- The `sendTx` primitive backing the passkey path is spike-decided (§4): either a raw viem `walletClient.sendTransaction({to,data,value})` OR wagmi's `useSendTransactionSync({ calls: [{to,data}] })`. Both satisfy the same `{to,data,value} → hash` seam. The dev-fallback (local private key) is the guaranteed CI/local path regardless.
 
 ---
 
@@ -128,43 +128,83 @@ const chainId = Number(import.meta.env.VITE_CHAIN_ID ?? 42431)
 
 ---
 
-## 4. Turnkey embedded wallet + passkey on Tempo
+## 4. Passkey wallet — Tempo's official wagmi webAuthn connector
 
-**Official example (VERIFIED):** `https://github.com/tkhq/sdk/tree/main/examples/with-tempo`
-- It constructs a tx, **signs with Turnkey**, and broadcasts via Tempo's RPC. Node ≥ v20, pnpm.
-- Env: `SIGN_WITH` (Turnkey wallet account address / private-key id; blank = auto-create) and optional `SPONSOR_WITH` (a Turnkey wallet address to sponsor fees).
-- That example is a **Node script** (server-side signing), not a browser passkey demo — good reference for the signing call, but the browser passkey flow comes from the Turnkey browser SDK + the Tempo Accounts adapter below.
+Ante uses Tempo's **official wagmi `webAuthn` connector** (from the `accounts`
+SDK), NOT Turnkey. The connector is **backendless**: the WebAuthn ceremony runs
+entirely client-side, scoped to the current origin's registrable domain — no API
+keys, no signup, no `authUrl` by default, no hosted relay. The address is
+derived from the WebAuthn credential, so returning to the same site on the same
+device (or a synced authenticator) recovers the same address. There is no
+`server/` and no `@turnkey/*` dependency.
 
-**Two integration paths:**
+> **Prior Turnkey approach REMOVED (round-4 refactor, 2026-07-01).** The
+> half-built Turnkey embedded-wallet path (`accounts` + `turnkey` adapter,
+> `@turnkey/*`, hosted Auth Proxy, sub-org-creation backend) was deleted in
+> favour of the backendless wagmi webAuthn connector below. Kept only as a
+> historical note so a reader isn't surprised the git history mentions Turnkey.
 
-### (a) Tempo Accounts SDK with the Turnkey adapter (recommended for browser passkeys)
-- npm package: **`accounts`** (unscoped; published by tempoxyz; v0.14.9 at verify time). Install: `npm i accounts`. Best used **with Wagmi**.
-- Turnkey adapter docs: `https://accounts.tempo.xyz/docs/adapters/turnkey` (page self-flags as incomplete).
-- Also needs Turnkey core: `@turnkey/core` (provides `TurnkeyClient`, `generateWalletAccountsFromAddressFormat`).
-- Shape:
+### Packages
+
+| Package | Version | Provides |
+|---|---|---|
+| `accounts` | `~0.14.11` | Tempo Accounts SDK — a thin wagmi wrapper. Supplies the `wagmi/tempo` subpath (`webAuthn`, `tempoWallet`) and `wagmi/chains` (`tempo`, `tempoTestnet`, `tempoDevnet`, `tempoLocalnet`). |
+| `wagmi` | `^3.6.21` | Standard hooks: `useAccount`, `useConnect`, `useDisconnect`, `useConnectors`, `useWalletClient`, `useSendTransactionSync`, `useReconnect`. |
+| `@tanstack/react-query` | `^5.101.2` | wagmi peer. |
+| `viem` | `^2.43.3` | **MANDATORY bump** from `2.21` — `accounts` needs `>= 2.43.3`. |
+
+- **`webAuthn` AND `tempoWallet` both come from `wagmi/tempo`** (the subpath the
+  `accounts` wrapper provides), NOT from `wagmi/connectors` (that is core wagmi's
+  injected/walletConnect/coinbase connectors and does not export Tempo
+  connectors). Ante uses only `webAuthn` this round.
+- `webAuthn()` options (per docs): `authUrl`, `ceremony`, `icon`, `name`,
+  `rdns`, `authorizeAccessKey`. **There is NO `testnet` option** — network is
+  selected purely by the chain object in `chains: [...]`, never by a connector
+  flag. Ante calls `webAuthn()` with no options (backendless default).
+- Chain objects come from `wagmi/chains`: `tempo` (mainnet) and `tempoTestnet`
+  (Moderato). There is **no `tempoModerato` export**. Assert `tempoTestnet.id ===
+  42431` at install; if it differs, hand-define Moderato via `defineChain` and
+  confirm the connector accepts it.
+- Connection state is read via **standard `wagmi` hooks**. A `Hooks` namespace
+  AND an `Actions` namespace also exist in `wagmi/tempo` (Tempo-specific
+  token/dex/amm/wallet/fee/nonce protocol helpers) — they **exist but Ante does
+  not use them**: there is no named Action for arbitrary writes like
+  `post`/`withdraw`/`tip`/`flag`/`resolveFlag`/`approve`. (`viem/tempo` surface
+  is unverified and unused.)
+
+### Shape (what Ante builds)
 
 ```tsx
-import { Provider, turnkey } from 'accounts'
-import { TurnkeyClient } from '@turnkey/core'
+// AnteWeb3Provider.tsx (runtime-built from AnteConfig)
+import { WagmiProvider, createConfig, http } from 'wagmi'
+import { webAuthn } from 'wagmi/tempo'
+import { tempo, tempoTestnet } from 'wagmi/chains'
 
-const provider = Provider.create({
-  adapter: turnkey({
-    client: new TurnkeyClient({ organizationId, authProxyConfigId }),
-    createAccount: async ({ client, parameters }) => { /* passkey sign-up */ },
-    loadAccounts:  async ({ client }) => { /* passkey login */ },
-  }),
+const config = createConfig({
+  chains: [isMainnet(cfg) ? tempo : tempoTestnet],
+  connectors: [webAuthn()],                 // no testnet option; backendless
+  transports: { [cfg.chainId]: http(cfg.rpcUrl || undefined) },
+  multiInjectedProviderDiscovery: false,    // don't attach to host-page wallets
 })
 ```
 
-### (b) Turnkey browser SDK directly (the demo-embedded-wallet pattern)
-- Packages: `@turnkey/sdk-browser`, `@turnkey/sdk-react`, `@turnkey/sdk-server`.
-- Flow: passkey/WebAuthn auth → on first login, create a **sub-org + wallet** for the user → use the resulting address with viem against `tempoTestnet`.
-- Reference demo (not Tempo-specific but the canonical passkey wallet flow): `https://github.com/tkhq/demo-embedded-wallet`.
+### §9 hard-gate answers (record here as the spike resolves them)
 
-### Does Turnkey need a backend? (⚠️ PARTIAL — important for the frontend agent)
-- **Yes, in production.** The Turnkey **parent-org API key must never live in the browser.** Passkey login uses Turnkey's hosted **Auth Proxy** for account lookup, but **sub-org + wallet creation** (sign-up) is a privileged call that needs a small server holding the parent-org API key (the `@turnkey/sdk-server` piece).
-- **Smallest viable backend:** one endpoint (Express / Hono / Next.js route) that uses `@turnkey/sdk-server` with the parent-org API key to (1) create a sub-organization + wallet for a new passkey user and (2) return the new sub-org/wallet id. Everything after that (signing) is done client-side via the user's passkey. This is the same server you can co-locate with the fee-payer relay (§5).
-- **For Ante's MVP / "runs today" requirement:** the SPEC's **dev fallback (local viem account from `VITE_DEV_PRIVATE_KEY`) is the guaranteed end-to-end path** and needs **no backend**. Wire the full Turnkey passkey path behind the `WalletProvider` seam but don't block the demo on it.
+The refactor's §9 gates. Fill each cell from the real Moderato ceremony + embed
+run; until then the DOCUMENTED expectation is noted so a reader knows the intended
+answer and what would be a BLOCKER.
+
+| Gate | Answer |
+|---|---|
+| **1. Send path** | The seam is `sendTx({to,data,value}) → hash`, stable either way. Documented primary API is wagmi's **`useSendTransactionSync({ calls: [{to,data}] })`** (path **b**) — the Tempo-native batched, fee-payer/nonce-keyed send. Whether the connector's viem `WalletClient` ALSO accepts a raw `sendTransaction({to,data,value})` (path **a**) is spike-decided. **DECISION: `TODO(spike) — record (a) or (b) after the Moderato ceremony`.** If NEITHER carries an arbitrary `{to,data}` write → BLOCKER. |
+| **2a. Determinism — same browser, reload** | Expect **SAME address** (`TODO(spike): confirm on Moderato`). |
+| **2b. Determinism — cleared localStorage, re-login** | Expect **SAME address** — proves the address derives from the credential, not wagmi cache. **If DIFFERENT/absent → thesis BROKEN, BLOCKER.** (`TODO(spike): confirm on Moderato`). |
+| **2c. Second browser profile / synced authenticator** | SAME or DIFFERENT — recoverability boundary (`TODO(spike): one-line note`). |
+| **2d. New device, no synced authenticator** | Expect DIFFERENT/absent — used to word the UI/docs caveat (`TODO(spike): note`). |
+| **3. rpId scope** | Expect the **top-level origin's registrable domain** (e.g. `example.com`), NOT a Tempo-hosted relay. **If the default rpId is a hosted relay → thesis FALSE, BLOCKER (escalate).** Also record whether rpId is overridable without an `authUrl`. (`TODO(spike): record observed rpId`). |
+| **4. No phone-home** | Expect NO requests to any `tempo.xyz` auth/attestation host beyond the RPC during connect or send (capture the network panel / run offline-after-load). **Any auth/attestation call → thesis FALSE, BLOCKER.** (`TODO(spike): record network evidence`). |
+| **5. Standalone ≠ embed realm** | For the SAME authenticator, the standalone-origin address and the embed-host-origin address MUST **DIFFER** when the origins are different registrable domains (WebAuthn is domain-scoped). This is the falsifiable proof of the realm boundary; the UI + EMBEDDING.md caveat name it. (`TODO(spike): record both addresses, assert differ`). |
+| **6. Shadow-DOM reconnect** | Silent reconnect at MOUNT rehydrates a prior address from origin-scoped storage with **no OS dialog** and no double `credentials.get()` under StrictMode / N roots. A live connect in one widget does **NOT** live-propagate to an already-mounted sibling (storage event doesn't fire in the writing document); the sibling picks it up only on its own mount/reconnect. (`TODO(spike): confirm no double dialog / no stuck reconnecting`). |
 
 ---
 
@@ -188,7 +228,7 @@ tempoWallet({ feePayer: 'https://sponsor.moderato.tempo.xyz' })
 withRelay(http(), http('https://sponsor.moderato.tempo.xyz'))
 ```
 
-**Relevance to Ante:** sponsorship is **optional**. With it, a user could post/tip without holding any stablecoin for gas (nice UX win for pseudonymous first-time commenters). Without it, the user just needs faucet pathUSD to cover sub-millidollar fees. The Turnkey `with-tempo` example's `SPONSOR_WITH` env var is the simplest sponsorship hook to copy.
+**Relevance to Ante:** sponsorship is **optional** and NOT wired this round. With it, a user could post/tip without holding any stablecoin for gas (nice UX win for pseudonymous first-time commenters). Without it, the user just needs faucet pathUSD to cover sub-millidollar fees. If added later, route through the public testnet sponsor service (`tempoWallet({ feePayer: 'https://sponsor.moderato.tempo.xyz' })`) — no self-hosted relay needed.
 
 ---
 
@@ -231,9 +271,8 @@ STAKE_TOKEN=0x20c0000000000000000000000000000000000000          # pathUSD
 - TIP-20 spec (decimals = 6): https://docs.tempo.xyz/protocol/tip20/spec
 - Native stablecoins: https://docs.tempo.xyz/learn/tempo/native-stablecoins
 - Fee sponsorship: https://docs.tempo.xyz/guide/payments/sponsor-user-fees
-- Tempo Accounts SDK / Turnkey adapter: https://accounts.tempo.xyz/docs and https://accounts.tempo.xyz/docs/adapters/turnkey
+- Tempo Accounts SDK docs: https://accounts.tempo.xyz/docs
 - Tempo Accounts SDK source: https://github.com/tempoxyz/accounts
-- Turnkey `with-tempo` example: https://github.com/tkhq/sdk/tree/main/examples/with-tempo
-- Turnkey demo embedded wallet: https://github.com/tkhq/demo-embedded-wallet
+- wagmi + Tempo (webAuthn connector, `useSendTransactionSync`): https://wagmi.sh/tempo
 - ChainList (chain ID cross-check): https://chainlist.org/chain/tempo%20testnet
 - Chainstack tutorial (decimals + RPC cross-check): https://docs.chainstack.com/docs/tempo-tutorial-first-payment-app

@@ -10,17 +10,18 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@turnkey/sdk-browser": "^6.1.0",
-    "@turnkey/viem": "^0.14.30",
+    "@tanstack/react-query": "^5.101.2",
+    "accounts": "~0.14.11",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "viem": "^2.21.0"
+    "viem": "^2.43.3",
+    "wagmi": "^3.6.21"
   },
   "devDependencies": {
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^4.3.4",
-    "typescript": "~5.6.3",
+    "typescript": "~5.9.3",
     "vite": "^6.0.5"
   }
 }

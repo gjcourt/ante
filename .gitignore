@@ -14,3 +14,7 @@ web/node_modules/
 # misc
 .DS_Store
 web/dist-embed/
+
+# TS incremental build info + git worktrees
+*.tsbuildinfo
+.worktrees/

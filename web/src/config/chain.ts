@@ -21,16 +21,21 @@ const FALLBACK_CHAIN_ID = 42431; // 0xa5bf
 
 const FALLBACK_RPC_URL = "https://rpc.moderato.tempo.xyz";
 
+// Tempo MAINNET chain id (0x1089). Used to distinguish mainnet from the Moderato
+// testnet at runtime (see `isMainnet`), which in turn selects the wagmi chain
+// object and derives the viem chain `name`/`testnet` label in `makeChain`.
+export const MAINNET_CHAIN_ID = 4217;
+
 // Deployed Ante address — still a deploy-time output. Override with
 // VITE_ANTE_ADDRESS (or the embed's `ante-address` attribute) once
 // `forge script Deploy` has run. Zero keeps the "configure your env" banner up
 // until then.
-export const FALLBACK_ANTE_ADDRESS =
+const FALLBACK_ANTE_ADDRESS =
   "0x0000000000000000000000000000000000000000" as Address;
 
 // pathUSD — Tempo testnet stablecoin used for stakes (6 decimals, ERC-20).
 // The faucet (tempo_fundAddress) dispenses it. Override with VITE_TOKEN_ADDRESS.
-export const FALLBACK_TOKEN_ADDRESS =
+const FALLBACK_TOKEN_ADDRESS =
   "0x20c0000000000000000000000000000000000000" as Address;
 
 const FALLBACK_EXPLORER_URL = "https://explore.testnet.tempo.xyz";
@@ -44,9 +49,9 @@ export const ZERO_TOPIC =
 // AnteConfig — the runtime configuration object.
 //
 // Threaded through React context (`<AnteProvider config={...}>`) and consumed by
-// useAnte / makePublicClient / selectWalletProvider. The embed web component
-// builds one of these from its HTML attributes; the standalone app uses the
-// env-derived `defaultAnteConfig`.
+// useAnte / makePublicClient / AnteWeb3Provider. The embed web component builds
+// one of these from its HTML attributes; the standalone app uses the env-derived
+// `defaultAnteConfig`.
 // ---------------------------------------------------------------------------
 export interface AnteConfig {
   rpcUrl: string;
@@ -64,13 +69,6 @@ export interface AnteConfig {
   deployBlock?: bigint;
   /** max block span per eth_getLogs window (default 9000). */
   logRange?: bigint;
-  /** Turnkey embedded-wallet config (passkey path). All four required to enable. */
-  turnkey?: {
-    organizationId: string;
-    apiBaseUrl: string;
-    rpId: string;
-    signWith: Address;
-  };
 }
 
 // --- Env-derived defaults --------------------------------------------------
@@ -88,15 +86,6 @@ const envTokenAddress: Address = (import.meta.env.VITE_TOKEN_ADDRESS ??
   FALLBACK_TOKEN_ADDRESS) as Address;
 
 const envExplorerUrl: string = FALLBACK_EXPLORER_URL;
-
-function envTurnkey(): AnteConfig["turnkey"] {
-  const organizationId = import.meta.env.VITE_TURNKEY_ORGANIZATION_ID;
-  const apiBaseUrl = import.meta.env.VITE_TURNKEY_API_BASE_URL;
-  const rpId = import.meta.env.VITE_TURNKEY_RP_ID;
-  const signWith = import.meta.env.VITE_TURNKEY_SIGN_WITH;
-  if (!organizationId || !apiBaseUrl || !rpId || !signWith) return undefined;
-  return { organizationId, apiBaseUrl, rpId, signWith: signWith as Address };
-}
 
 function envDevKey(): Hex | undefined {
   const raw = import.meta.env.VITE_DEV_PRIVATE_KEY;
@@ -127,18 +116,17 @@ export const defaultAnteConfig: AnteConfig = {
   logRange: import.meta.env.VITE_LOG_RANGE
     ? BigInt(import.meta.env.VITE_LOG_RANGE)
     : undefined,
-  turnkey: envTurnkey(),
 };
 
-// --- Backwards-compatible named exports ------------------------------------
-// These keep older imports (and any not-yet-migrated call sites) working. They
-// reflect the env-derived defaults only — runtime overrides flow through the
-// AnteConfig object, not these constants.
-
-export const CHAIN_ID: number = defaultAnteConfig.chainId;
-export const RPC_URL: string = defaultAnteConfig.rpcUrl;
-export const ANTE_ADDRESS: Address = defaultAnteConfig.anteAddress;
-export const TOKEN_ADDRESS: Address = defaultAnteConfig.tokenAddress;
+/**
+ * True when a config targets Tempo MAINNET (chain id 4217). Used to select the
+ * network-specific wagmi chain object (`AnteWeb3Provider`) and to derive the viem
+ * chain `name`/`testnet` label in `makeChain`. Pure one-liner — everything else
+ * (RPC, addresses) is still config-driven, not branched on this.
+ */
+export function isMainnet(config: AnteConfig): boolean {
+  return config.chainId === MAINNET_CHAIN_ID;
+}
 
 /**
  * Build a viem `Chain` from an AnteConfig.
@@ -150,9 +138,10 @@ export const TOKEN_ADDRESS: Address = defaultAnteConfig.tokenAddress;
  * = 6), fetched at runtime in useAnte.
  */
 export function makeChain(config: AnteConfig): Chain {
+  const mainnet = isMainnet(config);
   return defineChain({
     id: config.chainId,
-    name: "Tempo Testnet (Moderato)",
+    name: mainnet ? "Tempo" : "Tempo Testnet (Moderato)",
     // Label-only (see note above). pathUSD is 6 decimals.
     nativeCurrency: {
       name: "USD stablecoin (gas)",
@@ -167,12 +156,9 @@ export function makeChain(config: AnteConfig): Chain {
           default: { name: "Tempo Explorer", url: config.explorerUrl },
         }
       : undefined,
-    testnet: true,
+    testnet: !mainnet,
   });
 }
-
-/** viem `Chain` for the env-derived default config (standalone app convenience). */
-export const tempoTestnet: Chain = makeChain(defaultAnteConfig);
 
 /**
  * True when a config has the minimum facts needed to talk to chain. The UI uses
@@ -191,6 +177,3 @@ export function isConfigured(config: AnteConfig): boolean {
     config.tokenAddress.toLowerCase() !== ZERO_ADDRESS
   );
 }
-
-/** Backwards-compatible: configured state of the env-derived default config. */
-export const isChainConfigured: boolean = isConfigured(defaultAnteConfig);

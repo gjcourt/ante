@@ -18,7 +18,7 @@ export default function App() {
           small refundable stablecoin stake on the Tempo chain. Good comments
           get the stake back (and can earn tips). Flagged-and-upheld comments
           get the stake slashed. No account, no real identity — just a
-          passkey-backed embedded wallet.
+          passkey, created right in your browser.
         </p>
       </article>
 
