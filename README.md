@@ -2,7 +2,8 @@
 
 [![CI](https://github.com/gjcourt/ante/actions/workflows/ci.yml/badge.svg)](https://github.com/gjcourt/ante/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-[![Tempo testnet](https://img.shields.io/badge/deployed-Tempo%20testnet-7c5cff.svg)](https://explore.testnet.tempo.xyz/address/0x353D262c31fEb296FF468905AA5C4dA59BE21345)
+[![Tempo mainnet](https://img.shields.io/badge/live-Tempo%20mainnet-6f42c1.svg)](./docs/security-review.md)
+[![unaudited — real funds at risk](https://img.shields.io/badge/unaudited-real%20funds%20at%20risk-critical.svg)](./docs/security-review.md)
 
 **A pseudonymous comment system where accountability comes from a refundable bond — not an identity.**
 
@@ -10,7 +11,7 @@ To comment, you post a small **refundable stablecoin stake**. If your comment su
 
 > Most comment systems fix bad comments with *identity* (real names, logins) or *moderation* (delete it after the fact). Both are the wrong tool. Speech in a comment box is free, so people post a lot of low-effort, bad-faith noise — an incentive problem you don't solve with nametags or cleanup crews. Ante prices the thing that's underpriced, and keeps you anonymous while doing it.
 
-Live on the **Tempo testnet (Moderato)**: [`0x353D262c31fEb296FF468905AA5C4dA59BE21345`](https://explore.testnet.tempo.xyz/address/0x353D262c31fEb296FF468905AA5C4dA59BE21345).
+> ⚠️ **Live on Tempo mainnet with real funds — and _not_ professionally audited.** `Ante.sol` has escrowed real **pathUSD** on **Tempo mainnet** (chain `4217`) at `0x547C52db2555e5d6c33f0C2715380D0cceE19676` since **2026-07-01**, with a 10% tip fee live. It has passed an in-house adversarial review ([`docs/security-review.md`](./docs/security-review.md)) but **no external audit** — the review itself recommends one before mainnet, which was not done. Open items are tracked as GitHub security advisories. **Use at your own risk.** (A separate testnet instance runs on Moderato, chain `42431`, `0x353D…1345`, for development.)
 
 ---
 
@@ -100,7 +101,7 @@ The chain is the source of truth; everything else is a rebuildable read model.
 
 ## Security
 
-The contract was hardened after an adversarial review — see [`docs/security-review.md`](./docs/security-review.md). Highlights: fee-on-transfer-safe escrow (credits the *actually received* amount via balance-delta), aggregate escrow accounting, min-stake bounds, and disabled `renounceOwnership`. `SafeERC20` + `ReentrancyGuard` throughout; checks-effects-interactions on every fund move. **52/52 tests** cover the invariants, both resolve paths, fee-on-transfer accounting, and access control. Not yet audited — testnet only.
+The contract was hardened after an adversarial review — see [`docs/security-review.md`](./docs/security-review.md). Highlights: fee-on-transfer-safe escrow (credits the *actually received* amount via balance-delta), aggregate escrow accounting, min-stake bounds, and disabled `renounceOwnership`. `SafeERC20` + `ReentrancyGuard` throughout; checks-effects-interactions on every fund move. **52/52 tests** cover the invariants, both resolve paths, fee-on-transfer accounting, and access control. **Not professionally audited**, and **live on Tempo mainnet holding real pathUSD** — the review's own verdict recommends an audit before mainnet, which has not been done. Known open items are tracked as GitHub security advisories (notably an unbounded `setChallengeWindow` that can retroactively extend the stake lock, and a single-key owner/treasury/moderator). Real funds are at risk.
 
 ## Roadmap
 

@@ -10,7 +10,7 @@ This is the shared spec. Three workstreams build against it in parallel, partiti
 | `web/` | frontend agent | Vite + React + TS comment widget with a passkey wallet (wagmi webAuthn) |
 | `docs/` | research agent | `tempo-facts.md` (verified live chain/wallet config) |
 
-**Hard rules for all agents:** Do NOT run `git init` or commit anything (root is intentionally non-git for now). Self-verify your work by building/testing. If a live fact is unknown, leave a clearly-marked `TODO(facts)` and flag it in your summary — do not invent RPC URLs, token addresses, or chain IDs.
+**Hard rules for all agents:** Self-verify your work by building/testing. If a live fact is unknown, leave a clearly-marked `TODO(facts)` and flag it in your summary — do not invent RPC URLs, token addresses, or chain IDs. (This repo is git-tracked with CI and PRs; the earlier "root is intentionally non-git" note is obsolete.)
 
 ---
 
