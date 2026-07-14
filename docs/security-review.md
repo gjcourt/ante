@@ -30,3 +30,11 @@ The optimistic-challenge mechanism was subsequently implemented (was "future wor
 - **Open liveness item (documented, not a vuln):** a Challenged comment locks the author's stake until the moderator resolves; a negligent moderator could strand funds. Mitigation (resolution-timeout auto-reject) is noted in `SPEC.md`, out of MVP scope.
 
 **52/52 tests pass** (25 core + 12 hardening + 15 staked-flag). Full lifecycle including both resolve paths verified on a live anvil node.
+
+## Addendum — challenge-window snapshot (GHSA-qp2h)
+
+A later critique sweep found that `withdraw` computed the unlock as `postedAt + challengeWindow` using the **live** global, and `setChallengeWindow` was **unbounded** — so the owner (or a compromised owner key) could retroactively extend the lock on every outstanding stake indefinitely (real-funds liveness foot-gun on the live mainnet deployment).
+
+**FIXED (v2):** each comment now snapshots the window in effect at post time (`Comment.windowSecs`), and `withdraw`/`isWithdrawable` use that snapshot — so `setChallengeWindow` only affects **future** posts and can never retroactively lock existing funds. `setChallengeWindow` (and the constructor) are bounded to `MAX_CHALLENGE_WINDOW = 30 days`. Tests: `test_setChallengeWindow_doesNotRetroLockExistingStakes`, `test_setChallengeWindow_rejectsOutOfBounds`, `test_constructor_rejectsOutOfBoundsWindow`. **This is a new contract (v2) — it requires a redeploy + migration; the live v1 at `0x547C…9676` still carries the original behavior until migrated.**
+
+**55/55 tests pass.** The single-key owner/treasury/moderator concentration (tracked in the GitHub advisories) remains an operational item independent of this code fix.

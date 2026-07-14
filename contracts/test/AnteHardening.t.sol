@@ -60,7 +60,7 @@ contract AnteHardeningTest is Test {
 
         vm.prank(alice);
         uint256 id1 = a.post(TOPIC, 100e6, "alice");
-        (, uint96 stake1, , , , ) = a.comments(id1);
+        (, uint96 stake1, , , , , ) = a.comments(id1);
         assertEq(stake1, 99e6, "credited received (post-fee), not requested");
         assertEq(a.totalEscrowed(), 99e6);
         assertEq(fee.balanceOf(address(a)), 99e6, "contract holds exactly what it credited");
@@ -79,7 +79,7 @@ contract AnteHardeningTest is Test {
         vm.prank(bob);
         a.withdraw(id2);
         assertEq(a.totalEscrowed(), 0);
-        (, , , Ante.Status s2, , ) = a.comments(id2);
+        (, , , , Ante.Status s2, , ) = a.comments(id2);
         assertEq(uint8(s2), uint8(Ante.Status.Withdrawn));
     }
 
@@ -194,5 +194,55 @@ contract AnteHardeningTest is Test {
         vm.prank(bob);
         ante.tip(id, 1e6);
         assertEq(token.balanceOf(alice), before + 1e6, "tip still reaches author");
+    }
+
+    // ---- GHSA-qp2h: setChallengeWindow can't retroactively lock existing stakes,
+    //      and the window is bounded so no post can be locked indefinitely.
+
+    function test_setChallengeWindow_doesNotRetroLockExistingStakes() public {
+        // Alice stakes under the 1-day window.
+        uint256 id = _post(alice, "staked under 1d window", MIN_STAKE);
+
+        // Owner later raises the window to the max (30 days).
+        uint256 maxW = ante.MAX_CHALLENGE_WINDOW();
+        vm.prank(owner);
+        ante.setChallengeWindow(maxW);
+
+        // Alice's stake still unlocks at HER snapshot (1 day), not the new global.
+        vm.warp(block.timestamp + WINDOW);
+        assertTrue(ante.isWithdrawable(id), "existing stake keeps its original window");
+        uint256 balBefore = token.balanceOf(alice);
+        vm.prank(alice);
+        ante.withdraw(id); // must not revert
+        assertEq(token.balanceOf(alice), balBefore + MIN_STAKE, "stake returned on original schedule");
+
+        // A NEW post gets the updated (30-day) window: not withdrawable after 1 day.
+        uint256 id2 = _post(bob, "staked under 30d window", MIN_STAKE);
+        uint256 t2 = block.timestamp;
+        vm.warp(block.timestamp + WINDOW);
+        assertFalse(ante.isWithdrawable(id2), "new post uses the updated window");
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(Ante.WindowNotElapsed.selector, t2 + maxW));
+        ante.withdraw(id2);
+    }
+
+    function test_setChallengeWindow_rejectsOutOfBounds() public {
+        uint256 maxW = ante.MAX_CHALLENGE_WINDOW();
+        vm.startPrank(owner);
+        vm.expectRevert(Ante.InvalidChallengeWindow.selector);
+        ante.setChallengeWindow(0);
+        vm.expectRevert(Ante.InvalidChallengeWindow.selector);
+        ante.setChallengeWindow(maxW + 1);
+        ante.setChallengeWindow(maxW); // boundary is allowed
+        vm.stopPrank();
+        assertEq(ante.challengeWindow(), maxW);
+    }
+
+    function test_constructor_rejectsOutOfBoundsWindow() public {
+        uint256 maxW = 30 days;
+        vm.expectRevert(Ante.InvalidChallengeWindow.selector);
+        new Ante(IERC20(address(token)), treasury, MIN_STAKE, 0, owner);
+        vm.expectRevert(Ante.InvalidChallengeWindow.selector);
+        new Ante(IERC20(address(token)), treasury, MIN_STAKE, maxW + 1, owner);
     }
 }

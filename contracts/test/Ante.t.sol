@@ -46,10 +46,11 @@ contract AnteTest is Test {
         uint256 id = _post(alice, "hello world", MIN_STAKE);
 
         assertEq(id, 1, "first id is 1");
-        (address author, uint96 stake, uint64 postedAt, Ante.Status status, bytes32 h, uint256 tips) =
-            ante.comments(id);
+        (address author, uint96 stake, uint64 postedAt, uint64 windowSecs, Ante.Status status, bytes32 h, uint256 tips)
+        = ante.comments(id);
         assertEq(author, alice);
         assertEq(stake, uint96(MIN_STAKE));
+        assertEq(windowSecs, uint64(WINDOW), "window snapshotted at post");
         assertEq(postedAt, uint64(block.timestamp));
         assertEq(uint8(status), uint8(Ante.Status.Active));
         assertEq(h, keccak256(bytes("hello world")), "content hash");
@@ -87,7 +88,7 @@ contract AnteTest is Test {
         vm.prank(alice);
         ante.withdraw(id);
 
-        (, , , Ante.Status status, , ) = ante.comments(id);
+        (, , , , Ante.Status status, , ) = ante.comments(id);
         assertEq(uint8(status), uint8(Ante.Status.Withdrawn));
         assertEq(token.balanceOf(alice), balBefore + MIN_STAKE, "stake returned");
         assertEq(token.balanceOf(address(ante)), 0);
@@ -130,7 +131,7 @@ contract AnteTest is Test {
         vm.prank(owner); // owner is seeded as moderator
         ante.slash(id, "spam");
 
-        (, , , Ante.Status status, , ) = ante.comments(id);
+        (, , , , Ante.Status status, , ) = ante.comments(id);
         assertEq(uint8(status), uint8(Ante.Status.Slashed));
         assertEq(token.balanceOf(treasury), tBefore + MIN_STAKE, "treasury got the stake");
         assertEq(token.balanceOf(address(ante)), 0);
@@ -168,7 +169,7 @@ contract AnteTest is Test {
         ante.setModerator(mod, true);
         vm.prank(mod);
         ante.slash(id, "by new mod");
-        (, , , Ante.Status status, , ) = ante.comments(id);
+        (, , , , Ante.Status status, , ) = ante.comments(id);
         assertEq(uint8(status), uint8(Ante.Status.Slashed));
     }
 
@@ -182,7 +183,7 @@ contract AnteTest is Test {
         ante.tip(id, 5e6);
 
         assertEq(token.balanceOf(alice), aBefore + 5e6, "author received tip");
-        (, , , , , uint256 tips) = ante.comments(id);
+        (, , , , , , uint256 tips) = ante.comments(id);
         assertEq(tips, 5e6, "tip accounted");
     }
 
@@ -218,7 +219,7 @@ contract AnteTest is Test {
         vm.prank(bob);
         ante.flag(id, MIN_STAKE, "off-topic");
 
-        (, , , Ante.Status status, , ) = ante.comments(id);
+        (, , , , Ante.Status status, , ) = ante.comments(id);
         assertEq(uint8(status), uint8(Ante.Status.Challenged), "flag opens a challenge");
         (address flagger, uint96 bond, , bool open) = ante.challenges(id);
         assertEq(flagger, bob);
