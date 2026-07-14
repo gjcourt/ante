@@ -32,7 +32,7 @@ else
 SIGN_FLAG := --private-key $(PRIVATE_KEY)
 endif
 
-.PHONY: help build test e2e fund deploy verify cors-check web-build web-embed wallet clean
+.PHONY: help build test e2e analyze fmt fmt-check fund deploy verify cors-check web-build web-embed wallet clean
 
 help: ## Show this help
 	@echo "Ante — make targets:"
@@ -50,6 +50,15 @@ build: ## Compile the contracts
 
 test: ## Run the full Foundry test suite
 	cd $(CONTRACTS) && forge test
+
+analyze: ## Static analysis on the contracts (needs: pip install slither-analyzer)
+	cd $(CONTRACTS) && slither . --config-file slither.config.json
+
+fmt: ## Auto-format the Solidity sources (forge fmt)
+	cd $(CONTRACTS) && forge fmt
+
+fmt-check: ## Check Solidity formatting without writing (forge fmt --check)
+	cd $(CONTRACTS) && forge fmt --check
 
 e2e: ## Spin up a throwaway anvil and run the full live-node lifecycle
 	@bash -c 'anvil --silent & A=$$!; trap "kill $$A 2>/dev/null" EXIT; sleep 3; \
