@@ -50,13 +50,19 @@ A complete example lives in [`examples/hugo/`](./examples/hugo/). The essentials
 **Site config** (`config.toml` or `hugo.toml`):
 
 ```toml
+# --- Tempo MAINNET (real pathUSD — the live config) ---
 [params.ante]
-  address  = "0xYourAnteContractAddress..."   # deployed Ante
-  token    = "0x20c0000000000000000000000000000000000000"  # stake token (pathUSD)
-  rpc      = "https://rpc.moderato.tempo.xyz"  # Tempo testnet RPC (CORS! see below)
-  chainId  = "42431"                            # Tempo testnet
-  explorer = "https://explore.testnet.tempo.xyz"
-  script   = "https://cdn.example.com/ante.js" # where you hosted the bundle
+  address  = "0xYourV2AnteAddress..."          # the v2 Ante from the timelock deploy (see contracts/docs/timelock-deploy-runbook.md)
+  token    = "0x20c0000000000000000000000000000000000000"  # pathUSD (same address on mainnet + testnet)
+  rpc      = "https://rpc.tempo.xyz"            # Tempo mainnet RPC (CORS! see below)
+  chainId  = "4217"                             # Tempo mainnet
+  explorer = "https://explore.tempo.xyz"        # verify the exact mainnet explorer host
+  script   = "https://cdn.example.com/ante.js"  # where you hosted the bundle
+
+# --- Tempo testnet ("Moderato") — for a staging/dev copy ---
+#   rpc      = "https://rpc.moderato.tempo.xyz"
+#   chainId  = "42431"
+#   explorer = "https://explore.testnet.tempo.xyz"
 ```
 
 **Partial** (`layouts/partials/ante.html`) emits the element + loads the script
@@ -69,6 +75,7 @@ once per page:
   token-address="{{ .Site.Params.ante.token }}"
   rpc-url="{{ .Site.Params.ante.rpc }}"
   chain-id="{{ .Site.Params.ante.chainId }}"
+  explorer-url="{{ .Site.Params.ante.explorer }}"
 ></ante-comments>
 ```
 
