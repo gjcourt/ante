@@ -92,7 +92,7 @@ event Flagged(uint256 indexed id, address indexed flagger, string reason);
 
 ### Rules / invariants (cover these in tests)
 - `post` reverts if `stake < minStake`; pulls exactly `stake`; `id` increments from 1; `contentHash == keccak256(bytes(content))`.
-- `withdraw` reverts before `postedAt + challengeWindow`; reverts if not `Active`; reverts if caller != author; pays back exactly `stake`; sets `Withdrawn`.
+- `withdraw` reverts before `postedAt + windowSecs` (the `challengeWindow` **snapshotted at post time**, not the live global — `setChallengeWindow` only affects future posts and can never retroactively lock existing stakes); reverts if not `Active`; reverts if caller != author; pays back exactly `stake`; sets `Withdrawn`. `challengeWindow` is bounded to `MAX_CHALLENGE_WINDOW` (30 days).
 - `slash` reverts if caller not a moderator; reverts if not `Active`; can fire during the window even after? — only while `Active` (i.e. before withdrawal); routes stake to `treasury`; sets `Slashed`.
 - `tip` routes the full amount to the author; reverts on zero; works regardless of status (you can tip a withdrawn comment).
 - Reentrancy-guarded around all token transfers; checks-effects-interactions ordering; `SafeERC20` everywhere.

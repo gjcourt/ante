@@ -33,6 +33,7 @@ contract Ante is ReentrancyGuard, Ownable {
         address author; // pseudonymous embedded-wallet address
         uint96 stake; // staked amount, token's smallest unit
         uint64 postedAt; // block.timestamp at post
+        uint64 windowSecs; // challengeWindow snapshotted at post time (packs w/ postedAt+status)
         Status status;
         bytes32 contentHash; // keccak256(bytes(content))
         uint256 tips; // cumulative tips routed to author (display only)
@@ -51,7 +52,8 @@ contract Ante is ReentrancyGuard, Ownable {
     uint256 public minFlagBond; // minimum bond to flag (defaults to minStake — symmetric)
     uint256 public flagBountyBps; // share of a slashed stake paid to the upholding flagger
     uint256 public tipFeeBps; // share of each tip routed to treasury/gas-pool (default 0)
-    uint256 public challengeWindow; // seconds before withdrawal unlocks
+    uint256 public constant MAX_CHALLENGE_WINDOW = 30 days; // upper bound: no comment can be locked longer
+    uint256 public challengeWindow; // seconds before withdrawal unlocks (snapshotted per comment at post)
     uint256 public nextId; // monotonic id; first posted comment is id 1
     uint256 public totalEscrowed; // all user funds held: live stakes + open flag bonds
 
@@ -86,6 +88,7 @@ contract Ante is ReentrancyGuard, Ownable {
     error BondBelowMinimum(uint256 provided, uint256 required);
     error StakeTooLarge(); // must fit in uint96
     error InvalidMinStake(); // must be > 0 and <= uint96 max
+    error InvalidChallengeWindow(); // must be > 0 and <= MAX_CHALLENGE_WINDOW
     error InvalidBps(); // must be <= 10_000
     error OwnershipCannotBeRenounced();
     error NotAuthor();
@@ -119,6 +122,7 @@ contract Ante is ReentrancyGuard, Ownable {
             revert ZeroAddress();
         }
         if (_minStake == 0 || _minStake > type(uint96).max) revert InvalidMinStake();
+        if (_challengeWindow == 0 || _challengeWindow > MAX_CHALLENGE_WINDOW) revert InvalidChallengeWindow();
         stakeToken = _stakeToken;
         treasury = _treasury;
         minStake = _minStake;
@@ -177,6 +181,10 @@ contract Ante is ReentrancyGuard, Ownable {
             // forge-lint: disable-next-line(unsafe-typecast)
             stake: uint96(received),
             postedAt: ts,
+            // snapshot the window in effect NOW; a later setChallengeWindow can't move it.
+            // safe cast: challengeWindow is bounded to MAX_CHALLENGE_WINDOW (30 days, fits uint64).
+            // forge-lint: disable-next-line(unsafe-typecast)
+            windowSecs: uint64(challengeWindow),
             status: Status.Active,
             contentHash: h,
             tips: 0
@@ -192,7 +200,7 @@ contract Ante is ReentrancyGuard, Ownable {
         if (c.author == address(0)) revert UnknownComment();
         if (msg.sender != c.author) revert NotAuthor();
         if (c.status != Status.Active) revert NotActive();
-        uint256 unlocksAt = uint256(c.postedAt) + challengeWindow;
+        uint256 unlocksAt = uint256(c.postedAt) + c.windowSecs; // per-comment snapshot, not the live global
         if (block.timestamp < unlocksAt) revert WindowNotElapsed(unlocksAt);
 
         uint256 amount = c.stake;
@@ -342,7 +350,11 @@ contract Ante is ReentrancyGuard, Ownable {
         revert OwnershipCannotBeRenounced();
     }
 
+    /// @notice Set the challenge window for FUTURE posts only. Existing comments keep the window
+    ///         snapshotted at their post time, so this can never retroactively lock staked funds.
+    ///         Bounded by MAX_CHALLENGE_WINDOW so no post can be locked indefinitely.
     function setChallengeWindow(uint256 _challengeWindow) external onlyOwner {
+        if (_challengeWindow == 0 || _challengeWindow > MAX_CHALLENGE_WINDOW) revert InvalidChallengeWindow();
         challengeWindow = _challengeWindow;
         emit ChallengeWindowSet(_challengeWindow);
     }
@@ -367,6 +379,6 @@ contract Ante is ReentrancyGuard, Ownable {
     function isWithdrawable(uint256 id) external view returns (bool) {
         Comment storage c = comments[id];
         return c.author != address(0) && c.status == Status.Active
-            && block.timestamp >= uint256(c.postedAt) + challengeWindow;
+            && block.timestamp >= uint256(c.postedAt) + c.windowSecs;
     }
 }

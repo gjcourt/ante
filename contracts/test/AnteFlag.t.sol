@@ -96,7 +96,7 @@ contract AnteFlagTest is Test {
         uint256 bounty = MIN / 2;
         assertEq(token.balanceOf(flagger), flaggerStart + bounty, "net gain == bounty");
         assertEq(token.balanceOf(treasury), tBefore + (MIN - bounty), "treasury gets stake remainder");
-        (, , , Ante.Status status, , ) = ante.comments(id);
+        (, , , , Ante.Status status, , ) = ante.comments(id);
         assertEq(uint8(status), uint8(Ante.Status.Slashed));
         assertEq(ante.totalEscrowed(), 0, "all escrow released");
         assertEq(token.balanceOf(address(ante)), 0, "contract empty");
@@ -115,7 +115,7 @@ contract AnteFlagTest is Test {
 
         assertEq(token.balanceOf(flagger), flaggerStart - MIN, "flagger forfeits the bond");
         assertEq(token.balanceOf(treasury), tBefore + MIN, "bond -> treasury");
-        (, , , Ante.Status status, , ) = ante.comments(id);
+        (, , , , Ante.Status status, , ) = ante.comments(id);
         assertEq(uint8(status), uint8(Ante.Status.Active), "comment vindicated");
         assertEq(ante.totalEscrowed(), MIN, "only the comment stake remains");
 
@@ -136,7 +136,7 @@ contract AnteFlagTest is Test {
         // back to Active -> can be flagged again
         vm.prank(rando);
         ante.flag(id, MIN, "second look");
-        (, , , Ante.Status status, , ) = ante.comments(id);
+        (, , , , Ante.Status status, , ) = ante.comments(id);
         assertEq(uint8(status), uint8(Ante.Status.Challenged));
     }
 
