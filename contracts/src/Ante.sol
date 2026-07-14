@@ -88,7 +88,10 @@ contract Ante is ReentrancyGuard, Ownable {
     error BondBelowMinimum(uint256 provided, uint256 required);
     error StakeTooLarge(); // must fit in uint96
     error InvalidMinStake(); // must be > 0 and <= uint96 max
+    error InvalidMinFlagBond(); // must be > 0 and <= uint96 max
     error InvalidChallengeWindow(); // must be > 0 and <= MAX_CHALLENGE_WINDOW
+    error ChallengeWindowClosed(); // can't flag once the comment is already withdrawable
+    error SelfFlag(); // an author cannot flag their own comment
     error InvalidBps(); // must be <= 10_000
     error OwnershipCannotBeRenounced();
     error NotAuthor();
@@ -254,6 +257,11 @@ contract Ante is ReentrancyGuard, Ownable {
         Comment storage c = comments[id];
         if (c.author == address(0)) revert UnknownComment();
         if (c.status != Status.Active) revert NotActive(); // also blocks a second open challenge
+        // Finality: once a comment is withdrawable, it can no longer be newly challenged.
+        // Without this, `flag` and `withdraw` overlap forever, so anyone could front-run an
+        // author's withdraw with a bond and re-lock the stake indefinitely (audit F12).
+        if (block.timestamp >= uint256(c.postedAt) + c.windowSecs) revert ChallengeWindowClosed();
+        if (msg.sender == c.author) revert SelfFlag(); // no flagging your own comment (audit F-A)
         if (bond < minFlagBond) revert BondBelowMinimum(bond, minFlagBond);
 
         uint256 balBefore = stakeToken.balanceOf(address(this));
@@ -325,7 +333,7 @@ contract Ante is ReentrancyGuard, Ownable {
     }
 
     function setMinFlagBond(uint256 _minFlagBond) external onlyOwner {
-        if (_minFlagBond == 0 || _minFlagBond > type(uint96).max) revert InvalidMinStake();
+        if (_minFlagBond == 0 || _minFlagBond > type(uint96).max) revert InvalidMinFlagBond();
         minFlagBond = _minFlagBond;
         emit MinFlagBondSet(_minFlagBond);
     }
