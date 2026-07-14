@@ -231,4 +231,37 @@ contract AnteFlagTest is Test {
         assertTrue(open);
         assertEq(a.totalEscrowed(), 198e6, "99 stake + 99 bond");
     }
+
+    // ---- audit F12: withdrawal finality — can't newly flag once withdrawable
+
+    function test_flag_revertsAfterWindow() public {
+        uint256 id = _post();
+        vm.warp(block.timestamp + WINDOW); // now withdrawable
+        vm.prank(flagger);
+        vm.expectRevert(Ante.ChallengeWindowClosed.selector);
+        ante.flag(id, MIN, "too late");
+        // and the author's withdraw cannot be front-run into the flag path
+        vm.prank(author);
+        ante.withdraw(id);
+    }
+
+    // ---- audit F-A: an author cannot flag their own comment
+
+    function test_flag_revertsSelfFlag() public {
+        uint256 id = _post();
+        vm.prank(author);
+        vm.expectRevert(Ante.SelfFlag.selector);
+        ante.flag(id, MIN, "flagging myself");
+    }
+
+    // ---- audit Info: setMinFlagBond uses a bond-specific error
+
+    function test_setMinFlagBond_bounds() public {
+        vm.startPrank(owner);
+        vm.expectRevert(Ante.InvalidMinFlagBond.selector);
+        ante.setMinFlagBond(0);
+        vm.expectRevert(Ante.InvalidMinFlagBond.selector);
+        ante.setMinFlagBond(uint256(type(uint96).max) + 1);
+        vm.stopPrank();
+    }
 }
