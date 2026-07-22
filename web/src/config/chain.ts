@@ -61,6 +61,12 @@ export interface AnteConfig {
   explorerUrl: string;
   /** per-thread scope (bytes32). Omit/ZERO_TOPIC for the global feed. */
   topic?: Hex;
+  /**
+   * Blog author's wallet. Its earliest comment on a topic is treated as the
+   * post ROOT (rendered as the header + "tip the author"), not a reply. Omit to
+   * disable — the widget then behaves as a flat comment list.
+   */
+  authorAddress?: Address;
   /** dev-only fallback: 0x-prefixed testnet private key for a viem local account. */
   devPrivateKey?: Hex;
   /** force the moderator panel on without the on-chain `moderators(addr)` read. */
@@ -93,6 +99,11 @@ function envDevKey(): Hex | undefined {
   return (raw.startsWith("0x") ? raw : `0x${raw}`) as Hex;
 }
 
+function envAuthorAddress(): Address | undefined {
+  const raw = import.meta.env.VITE_AUTHOR_ADDRESS;
+  return raw ? (raw as Address) : undefined;
+}
+
 /**
  * The build-time default config, derived entirely from `import.meta.env`. The
  * standalone `App.tsx` / `main.tsx` use this so they need no extra wiring; the
@@ -105,6 +116,7 @@ export const defaultAnteConfig: AnteConfig = {
   tokenAddress: envTokenAddress,
   explorerUrl: envExplorerUrl,
   topic: undefined,
+  authorAddress: envAuthorAddress(),
   devPrivateKey: envDevKey(),
   isModerator:
     String(import.meta.env.VITE_IS_MODERATOR ?? "").toLowerCase() === "true"

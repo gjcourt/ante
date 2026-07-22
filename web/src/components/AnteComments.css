@@ -102,6 +102,41 @@
   background: var(--ante-border);
 }
 
+/* Post root — the article rendered as the thread's root comment */
+.ante__root {
+  border: 1px solid var(--ante-border);
+  border-left: 3px solid var(--ante-active);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+.ante__root-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ante-muted);
+}
+.ante__root-badge strong {
+  color: inherit;
+  font-weight: 600;
+}
+.ante__root-content {
+  margin: 8px 0 0;
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.ante__root-actions {
+  margin-top: 10px;
+}
+.ante__tip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 /* Banners */
 .ante__banner {
   padding: 10px 12px;

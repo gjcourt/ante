@@ -123,6 +123,13 @@ function cacheKeyFor(config: AnteConfig): string {
 
 export interface UseAnte {
   comments: AnteComment[];
+  /**
+   * The blog author's earliest comment on this topic — the post ROOT, to be
+   * rendered as the header and tipped as "the author". Null when no
+   * `authorAddress` is configured or the author hasn't posted yet. It is also
+   * present in `comments`; the UI filters it out of the reply list.
+   */
+  rootComment: AnteComment | null;
   token: TokenMeta | null;
   minStake: bigint | null;
   /** minimum bond (smallest units) required to challenge a comment. */
@@ -682,9 +689,25 @@ export function useAnte(override?: Partial<AnteConfig>): UseAnte {
     [signer, getPublicClient, loadComments, anteAddress]
   );
 
+  // The blog author's earliest comment on this topic is the post ROOT (rendered
+  // as the header, tippable as "the author"), not a reply. Lowest id = earliest
+  // post; later author comments stay normal replies. Null when no authorAddress
+  // is set or the author hasn't posted yet → the widget shows a flat list.
+  const rootComment = useMemo<AnteComment | null>(() => {
+    const author = config.authorAddress?.toLowerCase();
+    if (!author) return null;
+    let root: AnteComment | null = null;
+    for (const c of comments) {
+      if (c.author.toLowerCase() !== author) continue;
+      if (!root || c.id < root.id) root = c;
+    }
+    return root;
+  }, [comments, config.authorAddress]);
+
   return useMemo(
     () => ({
       comments,
+      rootComment,
       token,
       minStake,
       minFlagBond,
@@ -709,6 +732,7 @@ export function useAnte(override?: Partial<AnteConfig>): UseAnte {
     }),
     [
       comments,
+      rootComment,
       token,
       minStake,
       minFlagBond,
