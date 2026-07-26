@@ -18,6 +18,9 @@ the Tempo network. The `Makefile` is the primary command surface.
 - `docs/`, `SPEC.md` — design and protocol spec.
 - `Makefile` — wraps the contract + web flow.
 
+See `docs/architecture.md` for the full architecture overview (component map,
+on-chain/off-chain boundary, and the post/flag/resolve/withdraw flows).
+
 ## Develop
 
 Foundry is auto-added to PATH by the Makefile (`$HOME/.foundry/bin`).
