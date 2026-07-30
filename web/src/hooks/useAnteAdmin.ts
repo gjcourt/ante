@@ -20,11 +20,16 @@ import {
 //
 // Deliberately a COMPANION hook (not folded into useAnte): the embed widget only
 // ever calls useAnte, so keeping the owner reads (`owner`, `treasury`,
-// `tipFeeBps`) and the eight privileged writes (`slash` + the seven owner
-// setters) out here keeps them out of the shipped `<ante-comments>` bundle. It
-// reuses the SAME primitives useAnte does — the shared AnteConfig context, a
-// makePublicClient read client, and the passkey / dev-key signer seam — so there
-// is no second wallet or config source of truth.
+// `tipFeeBps`) and the moderator `slash` write out here keeps them out of the
+// shipped `<ante-comments>` bundle. It reuses the SAME primitives useAnte does —
+// the shared AnteConfig context, a makePublicClient read client, and the passkey
+// / dev-key signer seam — so there is no second wallet or config source of truth.
+//
+// Owner governance (the seven config setters + moderator roster) is NOT here:
+// Ante v2's owner is a TimelockController, so those setters are driven from the
+// hardware CLI (Trezor proposer → 8-day delay → execute), not the browser. This
+// panel is a moderation console; `owner`/`treasury`/`tipFeeBps` are read-only
+// facts and `isOwner` is exposed only for display.
 //
 // The connected `address` is passed IN (from the caller's useAnte) so `isOwner`
 // is derived against the single address the rest of the UI already shows, rather
@@ -51,15 +56,6 @@ export interface UseAnteAdmin {
 
   // --- Moderator write ---
   slash: (id: bigint, reason: string) => Promise<Hash>;
-
-  // --- Owner writes ---
-  setMinStake: (amount: bigint) => Promise<Hash>;
-  setMinFlagBond: (amount: bigint) => Promise<Hash>;
-  setFlagBountyBps: (bps: number) => Promise<Hash>;
-  setTipFeeBps: (bps: number) => Promise<Hash>;
-  setChallengeWindow: (seconds: number) => Promise<Hash>;
-  setTreasury: (addr: Address) => Promise<Hash>;
-  setModerator: (addr: Address, allowed: boolean) => Promise<Hash>;
 }
 
 export function useAnteAdmin(connectedAddress: Address | null): UseAnteAdmin {
@@ -223,34 +219,6 @@ export function useAnteAdmin(connectedAddress: Address | null): UseAnteAdmin {
     (id: bigint, reason: string) => send("slash", [id, reason]),
     [send]
   );
-  const setMinStakeW = useCallback(
-    (amount: bigint) => send("setMinStake", [amount]),
-    [send]
-  );
-  const setMinFlagBondW = useCallback(
-    (amount: bigint) => send("setMinFlagBond", [amount]),
-    [send]
-  );
-  const setFlagBountyBpsW = useCallback(
-    (bps: number) => send("setFlagBountyBps", [BigInt(bps)]),
-    [send]
-  );
-  const setTipFeeBpsW = useCallback(
-    (bps: number) => send("setTipFeeBps", [BigInt(bps)]),
-    [send]
-  );
-  const setChallengeWindowW = useCallback(
-    (seconds: number) => send("setChallengeWindow", [BigInt(seconds)]),
-    [send]
-  );
-  const setTreasuryW = useCallback(
-    (addr: Address) => send("setTreasury", [addr]),
-    [send]
-  );
-  const setModeratorW = useCallback(
-    (addr: Address, allowed: boolean) => send("setModerator", [addr, allowed]),
-    [send]
-  );
 
   return useMemo(
     () => ({
@@ -264,13 +232,6 @@ export function useAnteAdmin(connectedAddress: Address | null): UseAnteAdmin {
       refresh,
       readModerator,
       slash,
-      setMinStake: setMinStakeW,
-      setMinFlagBond: setMinFlagBondW,
-      setFlagBountyBps: setFlagBountyBpsW,
-      setTipFeeBps: setTipFeeBpsW,
-      setChallengeWindow: setChallengeWindowW,
-      setTreasury: setTreasuryW,
-      setModerator: setModeratorW,
     }),
     [
       owner,
@@ -283,19 +244,6 @@ export function useAnteAdmin(connectedAddress: Address | null): UseAnteAdmin {
       refresh,
       readModerator,
       slash,
-      setMinStakeW,
-      setMinFlagBondW,
-      setFlagBountyBpsW,
-      setTipFeeBpsW,
-      setChallengeWindowW,
-      setTreasuryW,
-      setModeratorW,
     ]
   );
 }
-
-// --- Shared validation bounds (mirror contracts/src/Ante.sol) --------------
-/** basis-point denominator; bps setters must be <= this. */
-export const BPS_DENOMINATOR = 10_000;
-/** upper bound on challengeWindow, in seconds (30 days). */
-export const MAX_CHALLENGE_WINDOW_SECS = 30 * 24 * 60 * 60;

@@ -1,27 +1,26 @@
 import { useMemo, useState } from "react";
-import { isAddress, type Address, type Hash } from "viem";
+import { type Address, type Hash } from "viem";
 import { useAnte, type AnteComment } from "../hooks/useAnte";
-import {
-  useAnteAdmin,
-  BPS_DENOMINATOR,
-  MAX_CHALLENGE_WINDOW_SECS,
-} from "../hooks/useAnteAdmin";
+import { useAnteAdmin } from "../hooks/useAnteAdmin";
 import { useAnteConfig } from "../config/AnteProvider";
 import { isMainnet } from "../config/chain";
 import "./AdminPanel.css";
 
 // ---------------------------------------------------------------------------
-// AdminPanel — wallet-gated operator console for an Ante deployment.
+// AdminPanel — wallet-gated MODERATION console for an Ante deployment.
 //
 // Standalone-only (mounted from App at `#/admin`); never bundled into the embed
 // widget. Three sections: blog setup + embed (the hero, orients a new operator),
-// owner config (the seven on-chain params + moderator roster), and moderation
-// (slash / resolve open challenges). Owner-only and moderator-only actions are
-// hard-gated and clearly explain why they're disabled when the connected wallet
-// lacks the role — the on-chain guards are the real enforcement, this is UX.
+// owner configuration (read-only — those params live on the Timelock CLI, see
+// below), and moderation (slash / resolve open challenges).
+//
+// Ante v2's owner is a TimelockController, not an EOA, so the seven owner
+// setters can't be called from a browser wallet (they'd revert). Owner
+// governance runs on the hardware CLI (Trezor proposer queues → 8-day delay →
+// execute); this panel only reads those values back. The one privileged action
+// it still performs is moderation, gated on `ante.isModerator` — the on-chain
+// guard is the real enforcement, this is UX.
 // ---------------------------------------------------------------------------
-
-const MAX_UINT96 = (1n << 96n) - 1n;
 
 export function AdminPanel() {
   const ante = useAnte();
@@ -34,10 +33,11 @@ export function AdminPanel() {
     <main className="admin">
       <header className="admin__head">
         <div>
-          <h1 className="admin__title">Ante · Admin console</h1>
+          <h1 className="admin__title">Ante · Moderation console</h1>
           <p className="admin__subtitle">
-            Owner &amp; moderator controls for your comment contract. Actions are
-            enforced on-chain; this panel just wires your wallet to them.
+            Moderator controls for your comment contract, plus the embed setup.
+            Owner parameters are governed on the timelock CLI (read-only here);
+            moderation is enforced on-chain and this panel wires your wallet to it.
           </p>
         </div>
         <div className="admin__wallet-col">
@@ -67,16 +67,15 @@ export function AdminPanel() {
 
       <RoleBanner
         address={ante.address}
-        isOwner={admin.isOwner}
         isModerator={ante.isModerator}
         owner={admin.owner}
       />
 
-      <SetupSection ante={ante} admin={admin} config={config} symbol={symbol} />
-
-      <OwnerConfigSection ante={ante} admin={admin} symbol={symbol} />
+      <SetupSection ante={ante} config={config} symbol={symbol} />
 
       <ModerationSection ante={ante} admin={admin} symbol={symbol} />
+
+      <OwnerConfigInfo admin={admin} symbol={symbol} />
     </main>
   );
 }
@@ -85,34 +84,32 @@ export function AdminPanel() {
 
 function RoleBanner({
   address,
-  isOwner,
   isModerator,
   owner,
 }: {
   address: Address | null;
-  isOwner: boolean;
   isModerator: boolean;
   owner: Address | null;
 }) {
   if (!address) {
     return (
       <div className="admin__role admin__role--none">
-        No wallet connected. Connect to see whether you're the owner or a
-        moderator of this contract.
+        No wallet connected. Connect to see whether you're a moderator of this
+        contract.
       </div>
     );
   }
   return (
     <div className="admin__role">
-      <span className={`admin__pill ${isOwner ? "is-on" : ""}`}>
-        {isOwner ? "✓ Owner" : "Not owner"}
-      </span>
       <span className={`admin__pill ${isModerator ? "is-on" : ""}`}>
         {isModerator ? "✓ Moderator" : "Not moderator"}
       </span>
       {owner && (
+        // Owner is the TimelockController, never the connected wallet — shown as
+        // a read-only fact so operators can confirm which timelock governs this
+        // deployment.
         <span className="admin__owner-of" title={owner}>
-          Owner: <code>{shortAddr(owner)}</code>
+          Owner (timelock): <code>{shortAddr(owner)}</code>
         </span>
       )}
     </div>
@@ -123,12 +120,10 @@ function RoleBanner({
 
 function SetupSection({
   ante,
-  admin,
   config,
   symbol,
 }: {
   ante: ReturnType<typeof useAnte>;
-  admin: ReturnType<typeof useAnteAdmin>;
   config: ReturnType<typeof useAnteConfig>;
   symbol: string;
 }) {
@@ -155,28 +150,16 @@ function SetupSection({
   const steps: { done: boolean; label: string; detail: string }[] = [
     {
       done: !!ante.address,
-      label: "Connect your operator wallet",
-      detail: "The passkey/dev wallet you deployed (or will moderate) from.",
-    },
-    {
-      done: admin.isOwner || ante.isModerator,
-      label: "Confirm your role",
-      detail: admin.isOwner
-        ? "You're the owner — you can set params and manage moderators."
-        : ante.isModerator
-          ? "You're a moderator — you can resolve challenges and slash."
-          : "Not yet owner or moderator on this contract.",
-    },
-    {
-      done: ante.minStake != null && ante.challengeWindow != null,
-      label: "Configure your parameters",
-      detail: "Set minStake, bond, bounty, tip fee and challenge window below.",
+      label: "Connect your moderator wallet",
+      detail: "The passkey/dev wallet you moderate from.",
     },
     {
       done: ante.isModerator,
-      label: "Add yourself as a moderator",
-      detail:
-        "So you can resolve challenges. Use the moderator form in Owner config.",
+      label: "Confirm your moderator role",
+      detail: ante.isModerator
+        ? "You're a moderator — you can resolve challenges and slash."
+        : "Not yet a moderator. The role is granted on the timelock CLI " +
+          "(see docs/timelock-deploy-runbook.md), not from this panel.",
     },
     {
       done: false,
@@ -246,264 +229,59 @@ function SetupSection({
   );
 }
 
-// --- Section 2: Owner config ----------------------------------------------
+// --- Owner configuration (read-only) --------------------------------------
+//
+// Under Ante v2 the contract owner is a TimelockController, so these params
+// can't be set from a browser wallet — the seven owner setters would revert.
+// This block is honest about that: it reads back the values the panel already
+// has and points at the CLI where governance actually happens.
 
-function OwnerConfigSection({
-  ante,
+function OwnerConfigInfo({
   admin,
   symbol,
 }: {
-  ante: ReturnType<typeof useAnte>;
   admin: ReturnType<typeof useAnteAdmin>;
   symbol: string;
 }) {
-  const disabled = !ante.configured || !admin.isOwner;
-  const reason = !ante.configured
-    ? "Chain not configured."
-    : !admin.isOwner
-      ? "Owner-only. Connect the contract owner's wallet to change these."
-      : undefined;
-
-  const afterWrite = async () => {
-    await ante.refresh();
-    await admin.refresh();
-  };
-
   return (
     <section className="admin__section">
-      <h2 className="admin__h2">Owner config</h2>
+      <h2 className="admin__h2">Owner configuration</h2>
       <p className="admin__section-note">
-        On-chain contract parameters. {admin.isOwner
-          ? "You're the owner — changes take one signed transaction each."
-          : "Read-only unless the connected wallet is the contract owner."}
+        Owner parameters — <code>minStake</code>, <code>minFlagBond</code>,{" "}
+        <code>flagBountyBps</code>, <code>tipFeeBps</code>,{" "}
+        <code>challengeWindow</code>, <code>treasury</code>, and the moderator
+        set — are governed by the <strong>TimelockController</strong> on the
+        hardware CLI, not this panel. A Trezor proposer queues a change (
+        <code>timelock.schedule()</code>), it waits out the 8-day delay, then it's
+        executed. See <code>docs/timelock-deploy-runbook.md</code>. Direct owner
+        calls from a browser wallet revert, so they've been removed here.
       </p>
 
-      <div className="admin__grid">
-        <SetterForm
-          label="Minimum stake"
-          unit={symbol}
-          current={ante.minStake != null ? `${ante.format(ante.minStake)} ${symbol}` : "—"}
-          initial={ante.minStake != null ? ante.format(ante.minStake) : ""}
-          disabled={disabled}
-          disabledReason={reason}
-          hint="Least a commenter must stake to post. Must be > 0."
-          action={async (raw) => {
-            const amount = ante.parse(raw);
-            if (amount <= 0n) throw new Error("Must be greater than zero.");
-            if (amount > MAX_UINT96) throw new Error("Exceeds uint96 max.");
-            const h = await admin.setMinStake(amount);
-            await afterWrite();
-            return h;
-          }}
+      <div className="admin__facts">
+        <Fact
+          label="Owner (timelock)"
+          value={admin.owner ? shortAddr(admin.owner) : "—"}
+          title={admin.owner ?? undefined}
         />
-
-        <SetterForm
-          label="Minimum flag bond"
-          unit={symbol}
-          current={ante.minFlagBond != null ? `${ante.format(ante.minFlagBond)} ${symbol}` : "—"}
-          initial={ante.minFlagBond != null ? ante.format(ante.minFlagBond) : ""}
-          disabled={disabled}
-          disabledReason={reason}
-          hint="Bond a challenger must stake to flag. Must be > 0."
-          action={async (raw) => {
-            const amount = ante.parse(raw);
-            if (amount <= 0n) throw new Error("Must be greater than zero.");
-            if (amount > MAX_UINT96) throw new Error("Exceeds uint96 max.");
-            const h = await admin.setMinFlagBond(amount);
-            await afterWrite();
-            return h;
-          }}
+        <Fact
+          label="Treasury"
+          value={admin.treasury ? shortAddr(admin.treasury) : "—"}
+          title={admin.treasury ?? undefined}
         />
-
-        <SetterForm
-          label="Flag bounty"
-          unit="bps"
-          current={ante.flagBountyBps != null ? `${ante.flagBountyBps} bps (${(ante.flagBountyBps / 100).toFixed(2)}%)` : "—"}
-          initial={ante.flagBountyBps != null ? String(ante.flagBountyBps) : ""}
-          disabled={disabled}
-          disabledReason={reason}
-          hint={`Share of a slashed stake paid to an upholding flagger. 0–${BPS_DENOMINATOR} bps.`}
-          action={async (raw) => {
-            const bps = parseBps(raw);
-            const h = await admin.setFlagBountyBps(bps);
-            await afterWrite();
-            return h;
-          }}
-        />
-
-        <SetterForm
+        <Fact
           label="Tip fee"
-          unit="bps"
-          current={admin.tipFeeBps != null ? `${admin.tipFeeBps} bps (${(admin.tipFeeBps / 100).toFixed(2)}%)` : "—"}
-          initial={admin.tipFeeBps != null ? String(admin.tipFeeBps) : ""}
-          disabled={disabled}
-          disabledReason={reason}
-          hint={`Share of each tip routed to the treasury. 0–${BPS_DENOMINATOR} bps.`}
-          action={async (raw) => {
-            const bps = parseBps(raw);
-            const h = await admin.setTipFeeBps(bps);
-            await afterWrite();
-            return h;
-          }}
-        />
-
-        <SetterForm
-          label="Challenge window"
-          unit="seconds"
-          current={
-            ante.challengeWindow != null
-              ? `${ante.challengeWindow}s (${humanDuration(ante.challengeWindow)})`
+          value={
+            admin.tipFeeBps != null
+              ? `${admin.tipFeeBps} bps (${(admin.tipFeeBps / 100).toFixed(2)}%)`
               : "—"
           }
-          initial={ante.challengeWindow != null ? String(ante.challengeWindow) : ""}
-          disabled={disabled}
-          disabledReason={reason}
-          hint={`Seconds a stake stays locked / flaggable. 1 – ${MAX_CHALLENGE_WINDOW_SECS} (30 days).`}
-          action={async (raw) => {
-            const secs = Math.trunc(Number(raw));
-            if (!Number.isFinite(secs) || secs <= 0)
-              throw new Error("Must be a positive number of seconds.");
-            if (secs > MAX_CHALLENGE_WINDOW_SECS)
-              throw new Error("Exceeds the 30-day maximum.");
-            const h = await admin.setChallengeWindow(secs);
-            await afterWrite();
-            return h;
-          }}
         />
-
-        <SetterForm
-          label="Treasury"
-          unit=""
-          current={admin.treasury ? shortAddr(admin.treasury) : "—"}
-          currentTitle={admin.treasury ?? undefined}
-          initial={admin.treasury ?? ""}
-          disabled={disabled}
-          disabledReason={reason}
-          mono
-          hint="Address that receives tip fees. Cannot be the zero address."
-          action={async (raw) => {
-            const addr = raw.trim();
-            if (!isAddress(addr)) throw new Error("Not a valid address.");
-            const h = await admin.setTreasury(addr as Address);
-            await afterWrite();
-            return h;
-          }}
-        />
-      </div>
-
-      <ModeratorForm ante={ante} admin={admin} disabled={disabled} disabledReason={reason} />
-    </section>
-  );
-}
-
-function ModeratorForm({
-  ante,
-  admin,
-  disabled,
-  disabledReason,
-}: {
-  ante: ReturnType<typeof useAnte>;
-  admin: ReturnType<typeof useAnteAdmin>;
-  disabled: boolean;
-  disabledReason?: string;
-}) {
-  const [addr, setAddr] = useState("");
-  const [busy, setBusy] = useState<null | "add" | "remove" | "check">(null);
-  const [status, setStatus] = useState<StatusMsg | null>(null);
-
-  const run = async (allowed: boolean) => {
-    const which = allowed ? "add" : "remove";
-    if (!isAddress(addr.trim())) {
-      setStatus({ kind: "err", msg: "Enter a valid address first." });
-      return;
-    }
-    setBusy(which);
-    setStatus({ kind: "pending", msg: "Submitting… confirm in your wallet." });
-    try {
-      const hash = await admin.setModerator(addr.trim() as Address, allowed);
-      setStatus({
-        kind: "ok",
-        msg: `${allowed ? "Added" : "Removed"} moderator · tx ${shortAddr(hash)}`,
-      });
-      await ante.refresh();
-    } catch (e) {
-      setStatus({ kind: "err", msg: errMsg(e) });
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const check = async () => {
-    if (!isAddress(addr.trim())) {
-      setStatus({ kind: "err", msg: "Enter a valid address first." });
-      return;
-    }
-    setBusy("check");
-    try {
-      const is = await admin.readModerator(addr.trim() as Address);
-      setStatus({
-        kind: "ok",
-        msg: is ? "Is currently a moderator." : "Not a moderator.",
-      });
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const fillSelf = () => {
-    if (ante.address) setAddr(ante.address);
-  };
-
-  return (
-    <div className="admin__mods">
-      <div className="admin__mods-head">
-        <h3 className="admin__h3">Moderators</h3>
-        {ante.address && (
-          <button type="button" className="admin__linkbtn" onClick={fillSelf}>
-            Use my address
-          </button>
-        )}
       </div>
       <p className="admin__hint">
-        Grant or revoke the moderator role (resolve challenges + slash). Add
-        yourself here before you can moderate.
+        Tip fees on this contract route to the treasury above, denominated in{" "}
+        {symbol}.
       </p>
-      <div className="admin__mods-row">
-        <input
-          className="admin__input admin__input--mono admin__input--grow"
-          value={addr}
-          onChange={(e) => setAddr(e.target.value)}
-          placeholder="0x… moderator address"
-          disabled={disabled || busy !== null}
-        />
-        <button
-          className="admin__btn"
-          disabled={disabled || busy !== null}
-          onClick={() => void check()}
-          title="Read the on-chain moderator flag (no transaction)"
-        >
-          Check
-        </button>
-        <button
-          className="admin__btn admin__btn--primary"
-          disabled={disabled || busy !== null}
-          onClick={() => void run(true)}
-        >
-          {busy === "add" ? "Adding…" : "Add"}
-        </button>
-        <button
-          className="admin__btn admin__btn--danger"
-          disabled={disabled || busy !== null}
-          onClick={() => void run(false)}
-        >
-          {busy === "remove" ? "Removing…" : "Remove"}
-        </button>
-      </div>
-      {disabled && disabledReason && (
-        <p className="admin__disabled-note">{disabledReason}</p>
-      )}
-      {status && <StatusLine status={status} />}
-    </div>
+    </section>
   );
 }
 
@@ -534,7 +312,8 @@ function ModerationSection({
   const reason = !ante.configured
     ? "Chain not configured."
     : !ante.isModerator
-      ? "Moderator-only. Connect a moderator wallet (add one in Owner config) to act."
+      ? "Moderator-only. Connect a moderator wallet to act — the role is granted " +
+        "on the timelock CLI (docs/timelock-deploy-runbook.md), not here."
       : undefined;
 
   return (
@@ -695,81 +474,6 @@ function ModerationRow({
   );
 }
 
-// --- Reusable setter form --------------------------------------------------
-
-function SetterForm({
-  label,
-  unit,
-  current,
-  currentTitle,
-  initial,
-  hint,
-  disabled,
-  disabledReason,
-  mono,
-  action,
-}: {
-  label: string;
-  unit: string;
-  current: string;
-  currentTitle?: string;
-  initial: string;
-  hint: string;
-  disabled: boolean;
-  disabledReason?: string;
-  mono?: boolean;
-  action: (raw: string) => Promise<Hash>;
-}) {
-  const [value, setValue] = useState(initial);
-  const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState<StatusMsg | null>(null);
-
-  const submit = async () => {
-    setBusy(true);
-    setStatus({ kind: "pending", msg: "Submitting… confirm in your wallet." });
-    try {
-      const hash = await action(value);
-      setStatus({ kind: "ok", msg: `Updated · tx ${shortAddr(hash)}` });
-    } catch (e) {
-      setStatus({ kind: "err", msg: errMsg(e) });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="admin__setter">
-      <div className="admin__setter-top">
-        <span className="admin__setter-label">{label}</span>
-        <span className="admin__setter-current" title={currentTitle}>
-          {current}
-        </span>
-      </div>
-      <div className="admin__setter-row">
-        <input
-          className={`admin__input admin__input--grow${mono ? " admin__input--mono" : ""}`}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          disabled={disabled || busy}
-        />
-        {unit && <span className="admin__setter-unit">{unit}</span>}
-        <button
-          className="admin__btn admin__btn--primary"
-          onClick={() => void submit()}
-          disabled={disabled || busy}
-        >
-          {busy ? "Saving…" : "Set"}
-        </button>
-      </div>
-      <p className="admin__hint">{hint}</p>
-      {disabled && disabledReason && (
-        <p className="admin__disabled-note">{disabledReason}</p>
-      )}
-      {status && <StatusLine status={status} />}
-    </div>
-  );
-}
-
 // --- Small shared pieces ---------------------------------------------------
 
 interface StatusMsg {
@@ -869,22 +573,6 @@ function buildEmbedSnippet(o: {
   }
 ></ante-comments>
 <script src="${o.scriptUrl.trim() || "https://cdn.example.com/ante.js"}" defer></script>`;
-}
-
-function parseBps(raw: string): number {
-  const n = Math.trunc(Number(raw));
-  if (!Number.isFinite(n) || n < 0)
-    throw new Error("Must be a non-negative number.");
-  if (n > BPS_DENOMINATOR)
-    throw new Error(`Must be ${BPS_DENOMINATOR} bps (100%) or less.`);
-  return n;
-}
-
-function humanDuration(secs: number): string {
-  if (secs % 86400 === 0) return `${secs / 86400}d`;
-  if (secs % 3600 === 0) return `${secs / 3600}h`;
-  if (secs % 60 === 0) return `${secs / 60}m`;
-  return `${secs}s`;
 }
 
 function shortAddr(addr: string): string {
