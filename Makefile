@@ -25,14 +25,22 @@ MIN_STAKE        ?= 250000
 CHALLENGE_WINDOW ?= 86400
 ORIGIN           ?= https://burntbytes.com
 
-# Signing: prefer an encrypted keystore (ACCOUNT) over a raw key (PRIVATE_KEY).
-ifdef ACCOUNT
+# --- Timelock (v2) defaults ------------------------------------------------
+# 691200s = 8 days. MUST be >= CHALLENGE_WINDOW (the DeployTimelock script requires it),
+# so any stake locked in a challenge can unlock + withdraw before a queued admin op lands.
+TIMELOCK_DELAY   ?= 691200
+
+# Signing precedence: TREZOR (hardware) > ACCOUNT (encrypted keystore) > PRIVATE_KEY (raw).
+# TREZOR=1 signs on-device; set HD_PATH to override the default account (m/44'/60'/0'/0/0).
+ifdef TREZOR
+SIGN_FLAG := --trezor$(if $(HD_PATH), --hd-path "$(HD_PATH)",)
+else ifdef ACCOUNT
 SIGN_FLAG := --account $(ACCOUNT)
 else
 SIGN_FLAG := --private-key $(PRIVATE_KEY)
 endif
 
-.PHONY: help build test e2e analyze fmt fmt-check fund deploy verify cors-check web-build web-embed wallet clean
+.PHONY: help build test e2e analyze fmt fmt-check fund deploy deploy-timelock verify cors-check web-build web-embed wallet clean
 
 help: ## Show this help
 	@echo "Ante — make targets:"
@@ -42,6 +50,10 @@ help: ## Show this help
 	@echo "Deploy vars: OWNER (admin+moderator), TREASURY (slash/forfeit sink),"
 	@echo "             PRIVATE_KEY or ACCOUNT (signer). Defaults: STAKE_TOKEN=pathUSD,"
 	@echo "             MIN_STAKE=$(MIN_STAKE), CHALLENGE_WINDOW=$(CHALLENGE_WINDOW)s."
+	@echo ""
+	@echo "Timelock (deploy-timelock): PROPOSER, GUARDIAN, MODERATOR, TREASURY + a signer"
+	@echo "             (TREZOR=1 | ACCOUNT=<name> | PRIVATE_KEY). DEPLOYER(signer) != MODERATOR."
+	@echo "             TIMELOCK_DELAY=$(TIMELOCK_DELAY)s (must be >= CHALLENGE_WINDOW)."
 
 # --- Contracts -------------------------------------------------------------
 
@@ -81,6 +93,23 @@ deploy: ## Deploy Ante to Tempo testnet (needs OWNER, TREASURY, PRIVATE_KEY|ACCO
 	  CHALLENGE_WINDOW=$(CHALLENGE_WINDOW) OWNER=$(OWNER) \
 	  forge script script/Deploy.s.sol:Deploy --rpc-url $(RPC_URL) --broadcast $(SIGN_FLAG)
 	@echo ">> Set VITE_ANTE_ADDRESS (and VITE_DEPLOY_BLOCK) from the output above."
+
+deploy-timelock: ## Deploy Ante v2 under a TimelockController owner (two-key model; see docs/timelock-deploy-runbook.md)
+	@test -n "$(PROPOSER)"  || { echo "set PROPOSER=0x...  (cold owner key; queues admin ops)"; exit 1; }
+	@test -n "$(GUARDIAN)"  || { echo "set GUARDIAN=0x...  (separate key; cancel-only)"; exit 1; }
+	@test -n "$(MODERATOR)" || { echo "set MODERATOR=0x... (hot key; slash/resolveFlag)"; exit 1; }
+	@test -n "$(TREASURY)"  || { echo "set TREASURY=0x...  (cold receive-only sink)"; exit 1; }
+	@test -n "$(TREZOR)$(PRIVATE_KEY)$(ACCOUNT)" || { echo "set a signer: TREZOR=1 | ACCOUNT=<name> | PRIVATE_KEY=0x..."; exit 1; }
+	@# The signer is the deployer: it becomes a temporary admin, then renounces. The script drops the
+	@# deployer's auto-seeded moderator bit, so the DEPLOYER (signer) MUST differ from MODERATOR.
+	cd $(CONTRACTS) && \
+	  STAKE_TOKEN=$(STAKE_TOKEN) TREASURY=$(TREASURY) MIN_STAKE=$(MIN_STAKE) \
+	  CHALLENGE_WINDOW=$(CHALLENGE_WINDOW) TIMELOCK_DELAY=$(TIMELOCK_DELAY) \
+	  PROPOSER=$(PROPOSER) GUARDIAN=$(GUARDIAN) MODERATOR=$(MODERATOR) \
+	  $(if $(TIP_FEE_BPS),TIP_FEE_BPS=$(TIP_FEE_BPS),) \
+	  forge script script/DeployTimelock.s.sol:DeployTimelock --rpc-url $(RPC_URL) --broadcast $(SIGN_FLAG)
+	@echo ">> Record the Ante + Timelock addresses from the output above."
+	@echo ">> Verify: owner()==Timelock, moderators[MODERATOR]==true, moderators[deployer]==false."
 
 verify: ## Sanity-check a deployed instance (Usage: make verify ANTE=0x..)
 	@test -n "$(ANTE)" || { echo "Usage: make verify ANTE=0xDeployedAddress"; exit 1; }
