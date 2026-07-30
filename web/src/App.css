@@ -34,6 +34,14 @@
   font-size: 12px;
 }
 
+.demo__adminlink {
+  color: #4f46e5;
+  text-decoration: none;
+}
+.demo__adminlink:hover {
+  text-decoration: underline;
+}
+
 @media (prefers-color-scheme: dark) {
   .demo__rule {
     border-top-color: #2a3038;
