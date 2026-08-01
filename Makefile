@@ -30,12 +30,24 @@ ORIGIN           ?= https://burntbytes.com
 # so any stake locked in a challenge can unlock + withdraw before a queued admin op lands.
 TIMELOCK_DELAY   ?= 691200
 
+# Tempo (TIP-1000) charges 1000 gas/byte for contract-create (vs 200) and 250k/slot for new
+# storage (vs 20k) — deploys cost 5-10x Ethereum. forge estimates a MULTI-tx script by LOCAL
+# EVM simulation (standard gas) because each tx depends on the previous one's not-yet-onchain
+# state, so it can't ask the node for a real estimate → it under-budgets the creates and they
+# OOG. Inflate the estimate 8x: covers the ~5.5x real cost with margin, stays under the 30M
+# per-tx block cap (Timelock create ~20M, Ante ~26M at 8x). A single-contract deploy wouldn't
+# need this (forge can eth_estimateGas it live), but DeployTimelock deploys two + 6 calls.
+GAS_MULT         ?= 800
+
 # Signing precedence: TREZOR (hardware) > ACCOUNT (encrypted keystore) > PRIVATE_KEY (raw).
 # TREZOR=1 signs on-device; set HD_PATH to override the default account (m/44'/60'/0'/0/0).
+# SENDER=0x... sets --sender: REQUIRED with TREZOR/ACCOUNT because forge can't derive the
+# broadcasting address from hardware or an encrypted keystore before signing, and aborts on
+# its default-sender guard. Derived automatically from a raw PRIVATE_KEY, so optional there.
 ifdef TREZOR
-SIGN_FLAG := --trezor$(if $(HD_PATH), --hd-path "$(HD_PATH)",)
+SIGN_FLAG := --trezor$(if $(HD_PATH), --hd-path "$(HD_PATH)",)$(if $(SENDER), --sender $(SENDER),)
 else ifdef ACCOUNT
-SIGN_FLAG := --account $(ACCOUNT)
+SIGN_FLAG := --account $(ACCOUNT)$(if $(SENDER), --sender $(SENDER),)
 else
 SIGN_FLAG := --private-key $(PRIVATE_KEY)
 endif
@@ -100,6 +112,7 @@ deploy-timelock: ## Deploy Ante v2 under a TimelockController owner (two-key mod
 	@test -n "$(MODERATOR)" || { echo "set MODERATOR=0x... (hot key; slash/resolveFlag)"; exit 1; }
 	@test -n "$(TREASURY)"  || { echo "set TREASURY=0x...  (cold receive-only sink)"; exit 1; }
 	@test -n "$(TREZOR)$(PRIVATE_KEY)$(ACCOUNT)" || { echo "set a signer: TREZOR=1 | ACCOUNT=<name> | PRIVATE_KEY=0x..."; exit 1; }
+	@test -z "$(TREZOR)$(ACCOUNT)" -o -n "$(SENDER)" || { echo "TREZOR/ACCOUNT signing needs SENDER=0x... (the signer's address; forge can't derive it pre-sign)"; exit 1; }
 	@# The signer is the deployer: it becomes a temporary admin, then renounces. The script drops the
 	@# deployer's auto-seeded moderator bit, so the DEPLOYER (signer) MUST differ from MODERATOR.
 	cd $(CONTRACTS) && \
@@ -107,7 +120,8 @@ deploy-timelock: ## Deploy Ante v2 under a TimelockController owner (two-key mod
 	  CHALLENGE_WINDOW=$(CHALLENGE_WINDOW) TIMELOCK_DELAY=$(TIMELOCK_DELAY) \
 	  PROPOSER=$(PROPOSER) GUARDIAN=$(GUARDIAN) MODERATOR=$(MODERATOR) \
 	  $(if $(TIP_FEE_BPS),TIP_FEE_BPS=$(TIP_FEE_BPS),) \
-	  forge script script/DeployTimelock.s.sol:DeployTimelock --rpc-url $(RPC_URL) --broadcast $(SIGN_FLAG)
+	  forge script script/DeployTimelock.s.sol:DeployTimelock --rpc-url $(RPC_URL) --broadcast \
+	    --gas-estimate-multiplier $(GAS_MULT) $(SIGN_FLAG)
 	@echo ">> Record the Ante + Timelock addresses from the output above."
 	@echo ">> Verify: owner()==Timelock, moderators[MODERATOR]==true, moderators[deployer]==false."
 
