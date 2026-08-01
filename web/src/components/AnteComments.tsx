@@ -13,6 +13,7 @@ export function AnteComments() {
   const ante = useAnte();
   const {
     comments,
+    rootComment,
     token,
     minStake,
     minFlagBond,
@@ -31,6 +32,12 @@ export function AnteComments() {
   const symbol = token?.symbol ?? "tokens";
   const minStakeHuman = minStake != null ? format(minStake) : null;
   const minFlagBondHuman = minFlagBond != null ? format(minFlagBond) : null;
+
+  // The post ROOT (the author's earliest comment) renders as the header above,
+  // not as a reply in the list below.
+  const replies = rootComment
+    ? comments.filter((c) => c.id !== rootComment.id)
+    : comments;
 
   return (
     <section className="ante">
@@ -68,20 +75,34 @@ export function AnteComments() {
         </div>
       )}
 
+      {rootComment && (
+        <RootPost
+          root={rootComment}
+          symbol={symbol}
+          format={format}
+          onTip={ante.tip}
+        />
+      )}
+
       <Composer
         symbol={symbol}
         minStakeHuman={minStakeHuman}
         onPost={ante.post}
         disabled={!configured}
+        replyMode={!!rootComment}
       />
 
       <div className="ante__list">
         {loading && comments.length === 0 ? (
           <p className="ante__empty">Loading comments…</p>
-        ) : comments.length === 0 ? (
-          <p className="ante__empty">No comments yet. Be the first to stake.</p>
+        ) : replies.length === 0 ? (
+          <p className="ante__empty">
+            {rootComment
+              ? "No replies yet. Be the first to stake a reply."
+              : "No comments yet. Be the first to stake."}
+          </p>
         ) : (
-          comments.map((c) => (
+          replies.map((c) => (
             <CommentCard
               key={c.id.toString()}
               comment={c}
@@ -174,11 +195,14 @@ function Composer({
   minStakeHuman,
   onPost,
   disabled,
+  replyMode = false,
 }: {
   symbol: string;
   minStakeHuman: string | null;
   onPost: (content: string, humanStake: string) => Promise<unknown>;
   disabled: boolean;
+  /** true when a post ROOT exists, so this composer stakes a REPLY. */
+  replyMode?: boolean;
 }) {
   const [content, setContent] = useState("");
   const [stake, setStake] = useState(minStakeHuman ?? "");
@@ -243,7 +267,11 @@ function Composer({
           onClick={() => void submit()}
           disabled={disabled || busy}
         >
-          {busy ? "Posting…" : `Stake ${stakeValue} ${symbol} to post`}
+          {busy
+            ? replyMode
+              ? "Replying…"
+              : "Posting…"
+            : `Stake ${stakeValue} ${symbol} to ${replyMode ? "reply" : "post"}`}
         </button>
       </div>
       <p className="ante__refund">
@@ -252,6 +280,100 @@ function Composer({
       </p>
       {status && <p className="ante__composer-status">{status}</p>}
     </div>
+  );
+}
+
+// --- Root post (the article, as the thread's root comment) -----------------
+
+// The blog author's own staked comment, rendered as the post header rather than
+// a reply. Its stake is a COMMITMENT SIGNAL, not an enforced bond — the author
+// is the sole moderator and won't slash themselves — so the copy says "staked",
+// not "at risk". Tipping here goes to the author (tip(rootId)).
+function RootPost({
+  root,
+  symbol,
+  format,
+  onTip,
+}: {
+  root: AnteComment;
+  symbol: string;
+  format: (n: bigint) => string;
+  onTip: (id: bigint, amount: string) => Promise<unknown>;
+}) {
+  const [tipOpen, setTipOpen] = useState(false);
+  const [tipAmount, setTipAmount] = useState("1");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  const sendTip = async () => {
+    setBusy(true);
+    setNote("Sending tip… confirm in your wallet.");
+    try {
+      await onTip(root.id, tipAmount);
+      setNote("Tip sent to the author.");
+      setTipOpen(false);
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <article className="ante__root">
+      <div className="ante__root-badge">
+        <span className="ante__dot" /> The author staked{" "}
+        <strong>
+          {format(root.stake)} {symbol}
+        </strong>{" "}
+        on this post
+        {root.tips > 0n && (
+          <>
+            {" "}
+            · {format(root.tips)} {symbol} in tips
+          </>
+        )}
+      </div>
+      {root.content && <p className="ante__root-content">{root.content}</p>}
+      <div className="ante__root-actions">
+        {!tipOpen ? (
+          <button
+            className="ante__btn ante__btn--ghost"
+            onClick={() => setTipOpen(true)}
+          >
+            Tip the author
+          </button>
+        ) : (
+          <div className="ante__tip-row">
+            <input
+              className="ante__input"
+              type="text"
+              inputMode="decimal"
+              value={tipAmount}
+              onChange={(e) => setTipAmount(e.target.value)}
+              disabled={busy}
+              aria-label={`Tip amount in ${symbol}`}
+            />
+            {symbol}
+            <button
+              className="ante__btn ante__btn--primary"
+              onClick={() => void sendTip()}
+              disabled={busy}
+            >
+              {busy ? "Tipping…" : "Send tip"}
+            </button>
+            <button
+              className="ante__btn ante__btn--ghost"
+              onClick={() => setTipOpen(false)}
+              disabled={busy}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+      </div>
+      {note && <p className="ante__composer-status">{note}</p>}
+    </article>
   );
 }
 

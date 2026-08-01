@@ -58,6 +58,7 @@ function readConfig(el: HTMLElement): { config: Partial<AnteConfig>; configured:
 
   const anteAddress = attr("ante-address") as Address | undefined;
   const tokenAddress = attr("token-address") as Address | undefined;
+  const authorAddress = attr("author-address") as Address | undefined;
   const rpcUrl = attr("rpc-url");
   const chainIdRaw = attr("chain-id");
   const explorerUrl = attr("explorer-url");
@@ -70,6 +71,7 @@ function readConfig(el: HTMLElement): { config: Partial<AnteConfig>; configured:
   if (topic) config.topic = topic;
   if (anteAddress) config.anteAddress = anteAddress;
   if (tokenAddress) config.tokenAddress = tokenAddress;
+  if (authorAddress) config.authorAddress = authorAddress;
   if (rpcUrl) config.rpcUrl = rpcUrl;
   if (chainIdRaw) config.chainId = Number(chainIdRaw);
   if (explorerUrl) config.explorerUrl = explorerUrl;
@@ -94,6 +96,7 @@ class AnteCommentsElement extends HTMLElement {
       "topic",
       "ante-address",
       "token-address",
+      "author-address",
       "rpc-url",
       "chain-id",
       "explorer-url",
