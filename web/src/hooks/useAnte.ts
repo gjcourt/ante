@@ -199,6 +199,9 @@ export function useAnte(override?: Partial<AnteConfig>): UseAnte {
   const [minFlagBond, setMinFlagBond] = useState<bigint | null>(null);
   const [flagBountyBps, setFlagBountyBps] = useState<number | null>(null);
   const [challengeWindow, setChallengeWindow] = useState<number | null>(null);
+  // On-chain contract owner — the default anchor for the post ROOT author, so
+  // root-ness is cryptographically the owner's comment (not trusted config).
+  const [owner, setOwner] = useState<Address | null>(null);
   const [address, setAddress] = useState<Address | null>(null);
   const [isModerator, setIsModerator] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -317,7 +320,7 @@ export function useAnte(override?: Partial<AnteConfig>): UseAnte {
     }
 
     try {
-      const [ms, mfb, fbBps, cw] = await Promise.all([
+      const [ms, mfb, fbBps, cw, own] = await Promise.all([
         pc.readContract({
           address: anteAddress,
           abi: anteAbi,
@@ -338,16 +341,23 @@ export function useAnte(override?: Partial<AnteConfig>): UseAnte {
           abi: anteAbi,
           functionName: "challengeWindow",
         }),
+        pc.readContract({
+          address: anteAddress,
+          abi: anteAbi,
+          functionName: "owner",
+        }),
       ]);
       setMinStake(ms as bigint);
       setMinFlagBond(mfb as bigint);
       setFlagBountyBps(Number(fbBps as bigint));
       setChallengeWindow(Number(cw as bigint));
+      setOwner(own as Address);
     } catch {
       setMinStake(null);
       setMinFlagBond(null);
       setFlagBountyBps(null);
       setChallengeWindow(null);
+      setOwner(null);
     }
   }, [getPublicClient, tokenAddress, anteAddress]);
 
@@ -689,12 +699,18 @@ export function useAnte(override?: Partial<AnteConfig>): UseAnte {
     [signer, getPublicClient, loadComments, anteAddress]
   );
 
-  // The blog author's earliest comment on this topic is the post ROOT (rendered
-  // as the header, tippable as "the author"), not a reply. Lowest id = earliest
-  // post; later author comments stay normal replies. Null when no authorAddress
-  // is set or the author hasn't posted yet → the widget shows a flat list.
+  // The post ROOT: the author's earliest comment on this topic (rendered as the
+  // header, tippable as "the author"), not a reply. Lowest id = earliest post;
+  // later author comments stay normal replies.
+  //
+  // Root author resolution: an explicit `authorAddress` override wins; otherwise
+  // it defaults to the on-chain contract `owner()`. Anchoring to `owner` makes
+  // root-ness CRYPTOGRAPHIC — only the owner's key can sign the root comment, and
+  // any client can verify it against the chain, so an impostor cannot post a
+  // first comment and pass it off as the author's (their signature won't match).
+  // Null when neither is known or the author hasn't posted → flat list fallback.
   const rootComment = useMemo<AnteComment | null>(() => {
-    const author = config.authorAddress?.toLowerCase();
+    const author = (config.authorAddress ?? owner)?.toLowerCase();
     if (!author) return null;
     let root: AnteComment | null = null;
     for (const c of comments) {
@@ -702,7 +718,7 @@ export function useAnte(override?: Partial<AnteConfig>): UseAnte {
       if (!root || c.id < root.id) root = c;
     }
     return root;
-  }, [comments, config.authorAddress]);
+  }, [comments, config.authorAddress, owner]);
 
   return useMemo(
     () => ({

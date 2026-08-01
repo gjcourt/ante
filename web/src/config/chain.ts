@@ -62,9 +62,11 @@ export interface AnteConfig {
   /** per-thread scope (bytes32). Omit/ZERO_TOPIC for the global feed. */
   topic?: Hex;
   /**
-   * Blog author's wallet. Its earliest comment on a topic is treated as the
-   * post ROOT (rendered as the header + "tip the author"), not a reply. Omit to
-   * disable — the widget then behaves as a flat comment list.
+   * OPTIONAL override for the post-ROOT author. Its earliest comment on a topic
+   * is rendered as the header + "tip the author", not a reply. When omitted, the
+   * root author defaults to the on-chain contract `owner()` (see useAnte) — the
+   * cryptographic, config-free default. Set this only when the blog author is a
+   * different wallet than the contract owner.
    */
   authorAddress?: Address;
   /** dev-only fallback: 0x-prefixed testnet private key for a viem local account. */

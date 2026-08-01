@@ -36,10 +36,19 @@ config value; everything else is frontend + config + one publish step.
 
 ### 3. Root derivation — `web/src/hooks/useAnte.ts`
 - Add `rootComment: AnteComment | null` to `UseAnte`.
-- Compute via `useMemo`: if `config.authorAddress` set, `rootComment` = the comment
-  in `comments` with the **lowest id** whose `author === authorAddress`; else `null`.
-  (Lowest id = earliest posted; later author comments stay normal replies.)
+- Read the contract `owner()` on load (alongside minStake/etc.) into `owner` state.
+- Resolve the root author = `config.authorAddress ?? owner`. Compute via `useMemo`:
+  `rootComment` = the comment in `comments` with the **lowest id** whose
+  `author === rootAuthor` (lowest id = earliest post; later author comments stay
+  replies); `null` when no author is known.
 - No change to feed fetching — the root is already in the topic's `comments`.
+
+**Anti-impersonation (why owner-anchoring):** the root is pinned to an *address*,
+not to posting order — an impostor's first comment is never the root because it
+isn't signed by the author's key. Defaulting the author to the on-chain `owner()`
+(rather than trusted frontend config) makes this **cryptographic and client-
+verifiable**: only the owner's key can sign the root, and any client can check it
+against the chain. `authorAddress` remains an override for author≠owner.
 
 ### 4. Render — `web/src/components/AnteComments.tsx`
 - If `rootComment` present, render a **header block** above the composer:
