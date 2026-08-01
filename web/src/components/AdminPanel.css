@@ -1,0 +1,534 @@
+/* Ante admin console — operator tool. Same token palette + spacing feel as the
+   Ante widget (.ante) and demo page; clean and functional, not flashy. */
+.admin {
+  --ad-bg: #ffffff;
+  --ad-panel: #fbfbfd;
+  --ad-fg: #11151c;
+  --ad-muted: #6b7280;
+  --ad-border: #e5e7eb;
+  --ad-accent: #4f46e5;
+  --ad-accent-fg: #ffffff;
+  --ad-danger: #b91c1c;
+  --ad-danger-bg: #fee2e2;
+  --ad-ok: #047857;
+  --ad-ok-bg: #d1fae5;
+  --ad-warn-fg: #854d0e;
+  --ad-warn-bg: #fef9c3;
+  --ad-radius: 12px;
+
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 40px 20px 72px;
+  color: var(--ad-fg);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.admin * {
+  box-sizing: border-box;
+}
+
+/* Header */
+.admin__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.admin__title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 680;
+  letter-spacing: -0.01em;
+}
+.admin__subtitle {
+  margin: 6px 0 0;
+  color: var(--ad-muted);
+  font-size: 13px;
+  max-width: 52ch;
+}
+.admin__wallet-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.admin__navlink {
+  font-size: 13px;
+  color: var(--ad-accent);
+  text-decoration: none;
+}
+.admin__navlink:hover {
+  text-decoration: underline;
+}
+
+.admin__wallet {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--ad-border);
+  border-radius: 999px;
+  font-size: 12px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.admin__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ad-ok);
+}
+
+/* Banners */
+.admin__banner {
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+.admin__banner--warn {
+  background: var(--ad-warn-bg);
+  color: var(--ad-warn-fg);
+}
+.admin__banner--error {
+  background: var(--ad-danger-bg);
+  color: var(--ad-danger);
+}
+.admin__banner code,
+.admin__hint code,
+.admin__owner-of code {
+  background: rgba(0, 0, 0, 0.06);
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 12px;
+}
+
+/* Role banner */
+.admin__role {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+  font-size: 13px;
+}
+.admin__role--none {
+  color: var(--ad-muted);
+}
+.admin__pill {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: var(--ad-muted);
+  border: 1px solid var(--ad-border);
+}
+.admin__pill.is-on {
+  background: var(--ad-ok-bg);
+  color: var(--ad-ok);
+  border-color: transparent;
+}
+.admin__owner-of {
+  color: var(--ad-muted);
+}
+
+/* Sections */
+.admin__section {
+  border: 1px solid var(--ad-border);
+  border-radius: var(--ad-radius);
+  padding: 20px;
+  margin-bottom: 20px;
+  background: var(--ad-bg);
+}
+.admin__section--hero {
+  background: var(--ad-panel);
+  border-color: var(--ad-accent);
+}
+.admin__h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 660;
+}
+.admin__h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 640;
+}
+.admin__section-note {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--ad-muted);
+}
+
+/* Facts row */
+.admin__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.admin__fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--ad-border);
+  border-radius: 10px;
+  background: var(--ad-bg);
+}
+.admin__fact-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ad-muted);
+}
+.admin__fact-value {
+  font-size: 14px;
+  font-weight: 560;
+}
+
+/* Checklist */
+.admin__checklist {
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.admin__step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+}
+.admin__step-mark {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  background: #f3f4f6;
+  color: var(--ad-muted);
+  border: 1px solid var(--ad-border);
+}
+.admin__step.is-done .admin__step-mark {
+  background: var(--ad-ok-bg);
+  color: var(--ad-ok);
+  border-color: transparent;
+}
+.admin__step-detail {
+  display: block;
+  color: var(--ad-muted);
+  font-size: 12px;
+}
+
+/* Embed block */
+.admin__embed-fields {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.admin__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--ad-muted);
+}
+.admin__field--wide {
+  flex: 1;
+  min-width: 240px;
+}
+.admin__code-wrap {
+  position: relative;
+  margin-top: 10px;
+}
+.admin__code {
+  margin: 0;
+  padding: 14px;
+  padding-right: 110px;
+  border: 1px solid var(--ad-border);
+  border-radius: 10px;
+  background: #0f1420;
+  color: #d7dce5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre;
+}
+.admin__btn--copy {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+/* Owner-config grid */
+.admin__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
+}
+.admin__setter {
+  border: 1px solid var(--ad-border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: var(--ad-bg);
+}
+.admin__setter-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.admin__setter-label {
+  font-weight: 600;
+  font-size: 14px;
+}
+.admin__setter-current {
+  font-size: 12px;
+  color: var(--ad-muted);
+  font-variant-numeric: tabular-nums;
+}
+.admin__setter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.admin__setter-unit {
+  font-size: 12px;
+  color: var(--ad-muted);
+}
+
+/* Inputs + buttons */
+.admin__input {
+  border: 1px solid var(--ad-border);
+  border-radius: 8px;
+  padding: 7px 9px;
+  font: inherit;
+  color: inherit;
+  background: var(--ad-bg);
+  outline: none;
+}
+.admin__input:focus {
+  border-color: var(--ad-accent);
+}
+.admin__input--grow {
+  flex: 1;
+  min-width: 0;
+}
+.admin__input--mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}
+.admin__input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.admin__btn {
+  border: 1px solid var(--ad-border);
+  background: #f9fafb;
+  color: var(--ad-fg);
+  border-radius: 9px;
+  padding: 7px 14px;
+  font: inherit;
+  font-weight: 550;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: filter 0.12s ease, opacity 0.12s ease;
+}
+.admin__btn:hover:not(:disabled) {
+  filter: brightness(0.97);
+}
+.admin__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.admin__btn--primary {
+  background: var(--ad-accent);
+  border-color: var(--ad-accent);
+  color: var(--ad-accent-fg);
+}
+.admin__btn--danger {
+  background: var(--ad-danger);
+  border-color: var(--ad-danger);
+  color: #fff;
+}
+.admin__linkbtn {
+  border: none;
+  background: none;
+  color: var(--ad-accent);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+.admin__linkbtn:hover {
+  text-decoration: underline;
+}
+
+.admin__hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--ad-muted);
+}
+.admin__disabled-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--ad-warn-fg);
+}
+
+/* Tx status */
+.admin__txstatus {
+  margin: 8px 0 0;
+  font-size: 12px;
+  word-break: break-word;
+}
+.admin__txstatus--pending {
+  color: var(--ad-accent);
+}
+.admin__txstatus--ok {
+  color: var(--ad-ok);
+}
+.admin__txstatus--err {
+  color: var(--ad-danger);
+}
+
+/* Moderators */
+.admin__mods {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ad-border);
+}
+.admin__mods-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.admin__mods-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+/* Moderation list */
+.admin__modlist {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.admin__modcard {
+  border: 1px solid var(--ad-border);
+  border-radius: 10px;
+  padding: 14px;
+  background: var(--ad-bg);
+}
+.admin__modcard-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.admin__mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  font-weight: 600;
+}
+.admin__status {
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+.admin__status--active {
+  background: var(--ad-ok-bg);
+  color: var(--ad-ok);
+}
+.admin__status--challenged {
+  background: #fef3c7;
+  color: #b45309;
+}
+.admin__status--slashed {
+  background: var(--ad-danger-bg);
+  color: var(--ad-danger);
+}
+.admin__status--withdrawn {
+  background: #e2e8f0;
+  color: #475569;
+}
+.admin__modcard-body {
+  margin: 0 0 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.admin__modcard-meta {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: var(--ad-muted);
+}
+.admin__modcard-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.admin__empty {
+  color: var(--ad-muted);
+  font-size: 14px;
+  text-align: center;
+  padding: 20px 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  .admin {
+    --ad-bg: #12161d;
+    --ad-panel: #151a22;
+    --ad-fg: #e5e7eb;
+    --ad-muted: #9ca3af;
+    --ad-border: #2a3038;
+    --ad-accent: #818cf8;
+    --ad-accent-fg: #0b0e13;
+    --ad-danger: #f87171;
+    --ad-danger-bg: #3f1d1d;
+    --ad-ok: #34d399;
+    --ad-ok-bg: #123a2c;
+    --ad-warn-fg: #fcd34d;
+    --ad-warn-bg: #3a2f0b;
+  }
+  .admin__btn {
+    background: #1b212a;
+  }
+  .admin__pill,
+  .admin__step-mark,
+  .admin__fact {
+    background: #1b212a;
+  }
+  .admin__banner code,
+  .admin__hint code,
+  .admin__owner-of code {
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .admin__btn--danger {
+    color: #12161d;
+  }
+}

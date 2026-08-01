@@ -96,7 +96,7 @@ contract AnteFlagTest is Test {
         uint256 bounty = MIN / 2;
         assertEq(token.balanceOf(flagger), flaggerStart + bounty, "net gain == bounty");
         assertEq(token.balanceOf(treasury), tBefore + (MIN - bounty), "treasury gets stake remainder");
-        (, , , Ante.Status status, , ) = ante.comments(id);
+        (, , , , Ante.Status status, , ) = ante.comments(id);
         assertEq(uint8(status), uint8(Ante.Status.Slashed));
         assertEq(ante.totalEscrowed(), 0, "all escrow released");
         assertEq(token.balanceOf(address(ante)), 0, "contract empty");
@@ -115,7 +115,7 @@ contract AnteFlagTest is Test {
 
         assertEq(token.balanceOf(flagger), flaggerStart - MIN, "flagger forfeits the bond");
         assertEq(token.balanceOf(treasury), tBefore + MIN, "bond -> treasury");
-        (, , , Ante.Status status, , ) = ante.comments(id);
+        (, , , , Ante.Status status, , ) = ante.comments(id);
         assertEq(uint8(status), uint8(Ante.Status.Active), "comment vindicated");
         assertEq(ante.totalEscrowed(), MIN, "only the comment stake remains");
 
@@ -136,7 +136,7 @@ contract AnteFlagTest is Test {
         // back to Active -> can be flagged again
         vm.prank(rando);
         ante.flag(id, MIN, "second look");
-        (, , , Ante.Status status, , ) = ante.comments(id);
+        (, , , , Ante.Status status, , ) = ante.comments(id);
         assertEq(uint8(status), uint8(Ante.Status.Challenged));
     }
 
@@ -230,5 +230,38 @@ contract AnteFlagTest is Test {
         assertEq(bond, 99e6, "bond credited net of fee");
         assertTrue(open);
         assertEq(a.totalEscrowed(), 198e6, "99 stake + 99 bond");
+    }
+
+    // ---- audit F12: withdrawal finality — can't newly flag once withdrawable
+
+    function test_flag_revertsAfterWindow() public {
+        uint256 id = _post();
+        vm.warp(block.timestamp + WINDOW); // now withdrawable
+        vm.prank(flagger);
+        vm.expectRevert(Ante.ChallengeWindowClosed.selector);
+        ante.flag(id, MIN, "too late");
+        // and the author's withdraw cannot be front-run into the flag path
+        vm.prank(author);
+        ante.withdraw(id);
+    }
+
+    // ---- audit F-A: an author cannot flag their own comment
+
+    function test_flag_revertsSelfFlag() public {
+        uint256 id = _post();
+        vm.prank(author);
+        vm.expectRevert(Ante.SelfFlag.selector);
+        ante.flag(id, MIN, "flagging myself");
+    }
+
+    // ---- audit Info: setMinFlagBond uses a bond-specific error
+
+    function test_setMinFlagBond_bounds() public {
+        vm.startPrank(owner);
+        vm.expectRevert(Ante.InvalidMinFlagBond.selector);
+        ante.setMinFlagBond(0);
+        vm.expectRevert(Ante.InvalidMinFlagBond.selector);
+        ante.setMinFlagBond(uint256(type(uint96).max) + 1);
+        vm.stopPrank();
     }
 }
