@@ -12,6 +12,18 @@ This is the **v2 redeploy** (the window-snapshot Ante) wired into the two-key mo
 Script: [`contracts/script/DeployTimelock.s.sol`](../contracts/script/DeployTimelock.s.sol) ·
 tests: [`contracts/test/Timelock.t.sol`](../contracts/test/Timelock.t.sol).
 
+## ✅ Deployed (2026-08-01) — verified
+
+| | Ante | Timelock (owner) | block | window / delay |
+|---|---|---|---|---|
+| **Mainnet** (4217) | `0xf18b1e9c3e2d7324d768d6728032107759366736` | `0xf755586bce6d99d825ac946f73a365ae641a49a8` | 32704748 | 604800 / 691200 |
+| Testnet (Moderato 42431) | `0x0ce1da48b5bde0ed1c426b225751e7c335935e89` | `0x0141a9bb9d680aae7304d9e67874772150fe03c1` | 28959077 | 60 / 120 |
+
+Roles both chains: PROPOSER=`0xC8Fa…f21f` (Trezor), GUARDIAN=`0x53f4…6d17`, MODERATOR=`0x8496…0c4f`,
+TREASURY=`0xb13c…6666` (cold), deployer=`0xf3f07B…36a7` (throwaway, renounced everything).
+Mainnet **supersedes v1 `0x547C…9676`** (neutralized). All `owner()==Timelock` / moderator-bit /
+role checks passed (§3).
+
 ## 0. Keys you need (four distinct addresses)
 
 | Env | Role | Keep it… | Notes |
@@ -44,16 +56,35 @@ export TREASURY=0xYourColdTreasury
 
 ## 2. Dry-run, then deploy
 
-```sh
-cd contracts
-# simulate (no broadcast) — check the console output addresses/roles
-forge script script/DeployTimelock.s.sol --rpc-url https://rpc.tempo.xyz --account ante-deployer
+Use the `make deploy-timelock` target — it bakes in the two Tempo-specific fixes below.
+Run the broadcast in a **real terminal** (the keystore password prompt needs a TTY; an
+in-session/`!` runner fails with `Device not configured`).
 
-# broadcast for real (signs with the ante-deployer keystore)
-forge script script/DeployTimelock.s.sol --rpc-url https://rpc.tempo.xyz --account ante-deployer --broadcast
+```sh
+# simulate (no broadcast, no password) — check the printed addresses/roles + gas
+cd contracts && forge script script/DeployTimelock.s.sol:DeployTimelock \
+  --rpc-url https://rpc.tempo.xyz --sender <DEPLOYER_ADDR> \
+  # (with STAKE_TOKEN/TREASURY/MIN_STAKE/CHALLENGE_WINDOW/TIMELOCK_DELAY/PROPOSER/GUARDIAN/MODERATOR env set)
+
+# broadcast for real (signs with the throwaway deployer keystore)
+make deploy-timelock RPC_URL=https://rpc.tempo.xyz \
+  PROPOSER=0x… GUARDIAN=0x… MODERATOR=0x… TREASURY=0x… \
+  TIMELOCK_DELAY=691200 CHALLENGE_WINDOW=604800 \
+  ACCOUNT=deployer SENDER=<DEPLOYER_ADDR>
 ```
 
-Record the printed **Ante** and **Timelock** addresses.
+**Two forge-on-Tempo gotchas the target handles (both cost a failed attempt otherwise):**
+- **`SENDER=` is required with `ACCOUNT=`/`TREZOR=`** — forge can't derive the broadcasting
+  address from an encrypted keystore before the password is entered and aborts on its
+  default-sender guard (`You seem to be using Foundry's default sender`).
+- **`--gas-estimate-multiplier 800` (baked in via `GAS_MULT`)** — forge estimates a *multi-tx*
+  script by local EVM simulation (standard gas) because each tx depends on the previous one's
+  not-yet-onchain state; Tempo's TIP-1000 create costs (1000 gas/byte, 250k/slot) run ~5.5× that,
+  so the creates OOG without the bump. 8× covers it and stays under the 30M per-tx block cap.
+
+The **DEPLOYER (signer) MUST differ from MODERATOR** — the script drops the deployer's
+auto-seeded moderator bit, which would cancel out an intended moderator==deployer. Record the
+printed **Ante** and **Timelock** addresses.
 
 ## 3. Verify on-chain
 
@@ -77,6 +108,15 @@ cast call $TIMELOCK "getMinDelay()(uint256)" --rpc-url ...                  # ==
 - Regenerate `web/src/abi/Ante.json` from the v2 build (the `comments()` getter gained `windowSecs`,
   and there are new errors). The feed reads events, so this is low-impact, but keep the ABI current.
 - Leave v1 (`0x547C…9676`) readable; its (tiny) stakes drain as authors withdraw. New comments go to v2.
+
+**Client approval model (know this before launch):** the first post from a passkey wallet is
+**two confirmations** — an ERC-20 `approve` then the `post` — and the app approves an **infinite**
+allowance (`maxUint256`), so every post after that is a **single** confirmation. The tradeoff: each
+commenter's wallet grants Ante permission to pull *all* its pathUSD, not just the stake. That's the
+standard dapp pattern (the alternative — re-approving every comment — is worse UX), and it's low-risk
+here: `post()` only ever pulls the exact `minStake`, the contract is covered by the security review +
+52 tests, and these are throwaway comment wallets holding just enough to stake. Worth a sentence in
+the launch post if it touches "what you're trusting."
 
 ## 5. Making an admin change afterward (e.g. change a fee)
 
