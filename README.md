@@ -11,7 +11,9 @@ To comment, you post a small **refundable stablecoin stake**. If your comment su
 
 > Most comment systems fix bad comments with *identity* (real names, logins) or *moderation* (delete it after the fact). Both are the wrong tool. Speech in a comment box is free, so people post a lot of low-effort, bad-faith noise — an incentive problem you don't solve with nametags or cleanup crews. Ante prices the thing that's underpriced, and keeps you anonymous while doing it.
 
-> ⚠️ **Live on Tempo mainnet with real funds — and _not_ professionally audited.** `Ante.sol` has escrowed real **pathUSD** on **Tempo mainnet** (chain `4217`) at `0x547C52db2555e5d6c33f0C2715380D0cceE19676` since **2026-07-01**, with a 10% tip fee live. It has passed an in-house adversarial review ([`docs/security-review.md`](./docs/security-review.md)) but **no external audit** — the review itself recommends one before mainnet, which was not done. Open items are tracked as GitHub security advisories. **Use at your own risk.** (A separate testnet instance runs on Moderato, chain `42431`, `0x353D…1345`, for development.)
+> ⚠️ **Live on Tempo mainnet with real funds — and _not_ professionally audited.** `Ante.sol` (v2, timelock-owned) has escrowed real **pathUSD** on **Tempo mainnet** (chain `4217`) at `0xf18b1e9c3e2d7324d768d6728032107759366736` since **2026-08-01** (superseding the neutralized v1 `0x547C…9676`), with a 10% tip fee live. It has passed an in-house adversarial review ([`docs/security-review.md`](./docs/security-review.md)) but **no external audit** — the review itself recommends one before mainnet, which was not done. Open items are tracked as GitHub security advisories. **Use at your own risk.** (A separate testnet instance runs on Moderato, chain `42431`, `0x0ce1…5e89`, for development.)
+
+> **Want stake-to-comment on your own blog?** You deploy your own contract — yours to moderate, yours to earn from. The whole cold start, including a **copy-paste prompt** you can hand to an AI coding agent, is in **[docs/SELF-HOST.md](./docs/SELF-HOST.md)**.
 
 ---
 
