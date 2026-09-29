@@ -39,18 +39,18 @@ A toll (pay to comment, keep the money) prices *speech*: it taxes your best cont
 
 | Dir | What | Status |
 |---|---|---|
-| [`contracts/`](./contracts) | Foundry: `Ante.sol`, mocks, tests, deploy + local-e2e scripts | **52/52 tests pass**; full lifecycle verified on a live node, deployed to Tempo testnet |
+| [`contracts/`](./contracts) | Foundry: `Ante.sol`, mocks, tests, deploy + local-e2e scripts | **66/66 tests pass**; full lifecycle verified on a live node, deployed to Tempo testnet |
 | [`web/`](./web) | Vite + React + TS comment widget **and** a `<ante-comments>` web component (shadow DOM) | builds clean; incremental IndexedDB feed sync; backendless passkey wallet (Tempo wagmi webAuthn) + dev-key fallback |
-| [`docs/`](./docs) | `tempo-facts.md` (verified chain/wallet config), `security-review.md` | — |
+| [`docs/`](./docs) | `architecture.md`, `tempo-facts.md` (verified chain/wallet config), `security-review.md` | — |
 
-Key design docs: [**SPEC.md**](./SPEC.md) (full mechanism), [**web/EMBEDDING.md**](./web/EMBEDDING.md) (embedding on a site), [**docs/security-review.md**](./docs/security-review.md).
+Key design docs: [**SPEC.md**](./SPEC.md) (full mechanism), [**docs/architecture.md**](./docs/architecture.md) (component map + flows), [**web/EMBEDDING.md**](./web/EMBEDDING.md) (embedding on a site), [**docs/security-review.md**](./docs/security-review.md).
 
 ## Quickstart
 
 Everything is wrapped in the [`Makefile`](./Makefile) (`make help` lists targets). Foundry is added to `PATH` automatically.
 
 ```bash
-make test        # forge test — 52/52
+make test        # forge test — 66/66
 make e2e         # spin up anvil + run the full lifecycle on a live node
 make web-build   # build the standalone web app
 make web-embed   # build the <ante-comments> embed bundle (dist-embed/ante.js)
@@ -103,7 +103,7 @@ The chain is the source of truth; everything else is a rebuildable read model.
 
 ## Security
 
-The contract was hardened after an adversarial review — see [`docs/security-review.md`](./docs/security-review.md). Highlights: fee-on-transfer-safe escrow (credits the *actually received* amount via balance-delta), aggregate escrow accounting, min-stake bounds, and disabled `renounceOwnership`. `SafeERC20` + `ReentrancyGuard` throughout; checks-effects-interactions on every fund move. **52/52 tests** cover the invariants, both resolve paths, fee-on-transfer accounting, and access control. **Not professionally audited**, and **live on Tempo mainnet holding real pathUSD** — the review's own verdict recommends an audit before mainnet, which has not been done. Known open items are tracked as GitHub security advisories (notably an unbounded `setChallengeWindow` that can retroactively extend the stake lock, and a single-key owner/treasury/moderator). Real funds are at risk.
+The contract was hardened after an adversarial review — see [`docs/security-review.md`](./docs/security-review.md) — and a follow-up internal audit ([`docs/security-audit-2026-07-14.md`](./docs/security-audit-2026-07-14.md)) before the v2 mainnet redeploy. Highlights: fee-on-transfer-safe escrow (credits the *actually received* amount via balance-delta), aggregate escrow accounting, min-stake bounds, and disabled `renounceOwnership`. `SafeERC20` + `ReentrancyGuard` throughout; checks-effects-interactions on every fund move. **66 tests** (including a fuzz invariant asserting `balanceOf == totalEscrowed` over 128k calls) cover both resolve paths, fee-on-transfer accounting, and access control. **Not professionally audited**, and **live on Tempo mainnet holding real pathUSD** — the review's own verdict recommends an audit before mainnet, which has not been done. The audit's dominant finding — one EOA acting as owner, moderator, *and* treasury — was addressed by the v2 timelock redeploy ([`docs/timelock-deploy-runbook.md`](./docs/timelock-deploy-runbook.md)): the owner is now a `TimelockController` with separate proposer/guardian keys, and moderator/treasury are distinct addresses. Remaining low-severity items, tracked as GitHub security advisories: forfeited flag bonds route to the treasury rather than the flagged author, and the moderator bit isn't automatically revoked on an ownership transfer. Real funds are at risk.
 
 ## Roadmap
 
