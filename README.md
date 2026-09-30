@@ -1,89 +1,27 @@
+<!-- readme-type: service -->
 # Ante
 
-[![CI](https://github.com/gjcourt/ante/actions/workflows/ci.yml/badge.svg)](https://github.com/gjcourt/ante/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-[![Tempo mainnet](https://img.shields.io/badge/live-Tempo%20mainnet-6f42c1.svg)](./docs/security-review.md)
-[![unaudited — real funds at risk](https://img.shields.io/badge/unaudited-real%20funds%20at%20risk-critical.svg)](./docs/security-review.md)
+Stake-and-slash pay-to-comment on Tempo — accountability from a refundable stablecoin bond, not an identity
 
-**A pseudonymous comment system where accountability comes from a refundable bond — not an identity.**
+Most comment systems fight bad comments with identity (logins, real names) or moderation (delete it after the fact) — the wrong tools for an incentive problem, since speech in a comment box is free and low-effort noise is cheap to produce. Ante prices the thing that's underpriced instead: to comment, you post a small refundable stablecoin stake, which you reclaim (and can earn tips on) if the comment survives a challenge window, or lose if it's flagged and the flag is upheld. Flagging is staked too, so grief-flagging costs as much as bad commenting. There is no account, no real name, and no login — the contract only ever sees a pseudonymous passkey wallet address.
 
-To comment, you post a small **refundable stablecoin stake**. If your comment survives a challenge window, you reclaim it (and can earn tips). If it's flagged and upheld, the stake is **slashed**. No account, no real name, no login — the system only ever sees a wallet address. **The bond is the reputation system, priced in dollars instead of karma points.**
+**Status:** live on Tempo mainnet since 2026-08-01 (v2, timelock-owned, escrowing real pathUSD) — unaudited; the in-house review recommends a professional audit before mainnet, which has not been done. See [`docs/security-review.md`](docs/security-review.md).
 
-> Most comment systems fix bad comments with *identity* (real names, logins) or *moderation* (delete it after the fact). Both are the wrong tool. Speech in a comment box is free, so people post a lot of low-effort, bad-faith noise — an incentive problem you don't solve with nametags or cleanup crews. Ante prices the thing that's underpriced, and keeps you anonymous while doing it.
+## Quick start
 
-> ⚠️ **Live on Tempo mainnet with real funds — and _not_ professionally audited.** `Ante.sol` (v2, timelock-owned) has escrowed real **pathUSD** on **Tempo mainnet** (chain `4217`) at `0xf18b1e9c3e2d7324d768d6728032107759366736` since **2026-08-01** (superseding the neutralized v1 `0x547C…9676`), with a 10% tip fee live. It has passed an in-house adversarial review ([`docs/security-review.md`](./docs/security-review.md)) but **no external audit** — the review itself recommends one before mainnet, which was not done. Open items are tracked as GitHub security advisories. **Use at your own risk.** (A separate testnet instance runs on Moderato, chain `42431`, `0x0ce1…5e89`, for development.)
-
-> **Want stake-to-comment on your own blog?** You deploy your own contract — yours to moderate, yours to earn from. The whole cold start, including a **copy-paste prompt** you can hand to an AI coding agent, is in **[docs/SELF-HOST.md](./docs/SELF-HOST.md)**.
-
----
-
-## How it works
-
-1. **Post** — approve the stake token, call `post(topic, stake, content)`. The stake is escrowed; the comment text is emitted in the `Posted` event (only `keccak256(content)` is stored on-chain, as an integrity anchor). `topic` scopes the comment to a thread — the frontend uses `keccak256(post-slug)`, so every article gets its own feed.
-2. **Tip** — anyone can `tip` an author (stablecoin → author; an optional `tipFeeBps` can route a share to a pool).
-3. **Challenge** — flagging is *also staked*: `flag(id, bond, reason)` bonds funds and moves the comment to `Challenged`, blocking the author's withdrawal. Accusing costs skin, just like speaking.
-4. **Resolve** — a moderator calls `resolveFlag(id, uphold, reason)`:
-   - **upheld** → comment slashed; the flagger is **refunded their bond + a bounty** (default 50% of the stake); the remainder goes to the treasury.
-   - **rejected** → the flagger **forfeits the bond** to the treasury; the comment returns to `Active`.
-5. **Withdraw** — after the window with no open challenge, the author calls `withdraw` and reclaims the stake.
-
-**Symmetric skin-in-the-game.** Speaking *and* accusing both require a bond, so grief-flagging is as costly as bad commenting. Staking disciplines *who flags*; a moderator still adjudicates *who's right* (correct for a personal blog — you don't decentralize the moderation of your own comment section). Forfeited bonds + slash remainders accrue to the treasury, which can fund Tempo's gas-sponsor account.
-
-Sybil resistance is **economic** (you can post, but throwaways lose money), not identity-based. Anonymity is via a **pseudonymous passkey wallet** — Tempo's official wagmi webAuthn connector, backendless (a client-side WebAuthn ceremony, no API keys, no signup), with no seed phrase and no account. ZK proof-of-personhood is a documented future upgrade.
-
-### Why a *bond*, not a charge
-
-A toll (pay to comment, keep the money) prices *speech*: it taxes your best contributors, lets anyone with money say anything, and leaves the bad comment up. A bond prices *bad behavior*: the good-faith commenter pays nothing in the end, and the refund is exactly what makes removal legitimate. The variable stake even doubles as a confidence signal — bonding above the minimum credibly says "I'll risk more on this not being removed."
-
-## Architecture
-
-| Dir | What | Status |
-|---|---|---|
-| [`contracts/`](./contracts) | Foundry: `Ante.sol`, mocks, tests, deploy + local-e2e scripts | **66/66 tests pass**; full lifecycle verified on a live node, deployed to Tempo testnet |
-| [`web/`](./web) | Vite + React + TS comment widget **and** a `<ante-comments>` web component (shadow DOM) | builds clean; incremental IndexedDB feed sync; backendless passkey wallet (Tempo wagmi webAuthn) + dev-key fallback |
-| [`docs/`](./docs) | `architecture.md`, `tempo-facts.md` (verified chain/wallet config), `security-review.md` | — |
-
-Key design docs: [**SPEC.md**](./SPEC.md) (full mechanism), [**docs/architecture.md**](./docs/architecture.md) (component map + flows), [**web/EMBEDDING.md**](./web/EMBEDDING.md) (embedding on a site), [**docs/security-review.md**](./docs/security-review.md).
-
-## Quickstart
-
-Everything is wrapped in the [`Makefile`](./Makefile) (`make help` lists targets). Foundry is added to `PATH` automatically.
+Needs: Node 22.
 
 ```bash
-make test        # forge test — 66/66
-make e2e         # spin up anvil + run the full lifecycle on a live node
-make web-build   # build the standalone web app
-make web-embed   # build the <ante-comments> embed bundle (dist-embed/ante.js)
-make cors-check  # confirm the RPC allows browser calls (for embedding)
+git clone https://github.com/gjcourt/ante && cd ante/web
+npm install
+VITE_ANTE_ADDRESS=0x0ce1da48b5bde0ed1c426b225751e7c335935e89 npm run dev
 ```
 
-### Run the widget against the live contract
+Then open <http://localhost:5173>. This points the widget at the existing Tempo testnet deployment — connect with a passkey to try it live.
 
-```bash
-cd web
-cp .env.example .env.local
-# set VITE_ANTE_ADDRESS (the deployed address) and VITE_DEPLOY_BLOCK.
-# For a wallet: use a passkey (default, no env) or set a throwaway testnet
-# VITE_DEV_PRIVATE_KEY for the dev-key fallback.
-npm install && npm run dev          # → http://localhost:5173
-```
-The Tempo testnet RPC, chain id (`42431`), and pathUSD token are baked in as defaults — you only need the Ante address. The passkey wallet is backendless and needs no configuration; the dev key is an optional testnet fallback.
+## Usage
 
-## Deploy your own
-
-Tempo charges gas in stablecoins, so the deployer must hold pathUSD (free from the faucet). One command each:
-
-```bash
-make wallet                       # generate a deployer keypair
-make fund ADDR=0xYourDeployer     # faucet pathUSD
-make deploy OWNER=0x.. TREASURY=0x.. PRIVATE_KEY=0x.. CHALLENGE_WINDOW=120
-make verify ANTE=0xDeployed       # sanity-check it's live
-```
-`OWNER` becomes the admin and first moderator; `TREASURY` receives slashed stakes and forfeited bonds. The compiled ABI is auto-exported to `web/src/abi/Ante.json`.
-
-## Embed it on a site
-
-Ante ships as a **web component**, so it drops into any static site with one script tag and no framework coupling (and it must be a web component, not an iframe — WebAuthn passkeys are blocked in cross-origin iframes):
+Drop the `<ante-comments>` web component into any static page (it must be a web component, not an iframe — WebAuthn passkeys are blocked in cross-origin iframes):
 
 ```html
 <ante-comments slug="my-post-slug" ante-address="0x..." token-address="0x..."
@@ -91,27 +29,43 @@ Ante ships as a **web component**, so it drops into any static site with one scr
 <script src="/ante.js"></script>
 ```
 
-A complete **Hugo (PaperMod)** example lives in [`web/examples/hugo/`](./web/examples/hugo), and [`web/EMBEDDING.md`](./web/EMBEDDING.md) covers hosting, RPC CORS, and CSP.
+A complete Hugo (PaperMod) example lives in [`web/examples/hugo/`](web/examples/hugo); [`web/EMBEDDING.md`](web/EMBEDDING.md) covers hosting, RPC CORS, and CSP. To put this on your own blog you deploy your own contract — walked through in [`docs/SELF-HOST.md`](docs/SELF-HOST.md).
 
-## Persistence
+## Configuration
 
-The chain is the source of truth; everything else is a rebuildable read model.
+The widget reads these at build time (`VITE_*` in `web/.env.local`); the embed takes the same values as HTML attributes instead (`ante-address`, `rpc-url`, …).
 
-- **On-chain** — escrow/status in contract storage; comment text in the `Posted` event (`keccak256(content)` anchors integrity).
-- **Now (serverless)** — the frontend folds the comment feed from logs and caches it in **IndexedDB** with **incremental sync**: a returning visitor only fetches the blocks since their last visit (chunked to respect RPC `eth_getLogs` limits).
-- **Later** — a small indexer (e.g. Ponder) when volume outgrows client-side scanning; it also becomes a durable, *authenticated* content store. Content can move to IPFS/Arweave with no contract change (emit a URI; the on-chain hash still proves integrity).
+| Variable | Default | Meaning |
+|---|---|---|
+| `VITE_RPC_URL` | `https://rpc.moderato.tempo.xyz` | Tempo JSON-RPC endpoint |
+| `VITE_CHAIN_ID` | `42431` | Tempo chain id (testnet Moderato; mainnet is `4217`) |
+| `VITE_ANTE_ADDRESS` | zero address | Deployed `Ante` contract — the widget shows a "configure your env" banner until this is set |
+| `VITE_TOKEN_ADDRESS` | `0x20c0…0000` | Stake token (pathUSD, ERC-20, 6 decimals) |
+| `VITE_DEPLOY_BLOCK` | `0` | Block the feed scan starts from |
+| `VITE_LOG_RANGE` | `9000` | Max block span per `eth_getLogs` call |
+| `VITE_DEV_PRIVATE_KEY` | unset | Testnet-only local-key wallet, in place of the passkey flow |
 
-## Security
+Full list, with rationale for each, in [`web/.env.example`](web/.env.example).
 
-The contract was hardened after an adversarial review — see [`docs/security-review.md`](./docs/security-review.md) — and a follow-up internal audit ([`docs/security-audit-2026-07-14.md`](./docs/security-audit-2026-07-14.md)) before the v2 mainnet redeploy. Highlights: fee-on-transfer-safe escrow (credits the *actually received* amount via balance-delta), aggregate escrow accounting, min-stake bounds, and disabled `renounceOwnership`. `SafeERC20` + `ReentrancyGuard` throughout; checks-effects-interactions on every fund move. **66 tests** (including a fuzz invariant asserting `balanceOf == totalEscrowed` over 128k calls) cover both resolve paths, fee-on-transfer accounting, and access control. **Not professionally audited**, and **live on Tempo mainnet holding real pathUSD** — the review's own verdict recommends an audit before mainnet, which has not been done. The audit's dominant finding — one EOA acting as owner, moderator, *and* treasury — was addressed by the v2 timelock redeploy ([`docs/timelock-deploy-runbook.md`](./docs/timelock-deploy-runbook.md)): the owner is now a `TimelockController` with separate proposer/guardian keys, and moderator/treasury are distinct addresses. Remaining low-severity items, tracked as GitHub security advisories: forfeited flag bonds route to the treasury rather than the flagged author, and the moderator bit isn't automatically revoked on an ownership transfer. Real funds are at risk.
+## How it works
 
-## Roadmap
+Posting escrows a stake and emits the comment text as an event (only its hash is stored on-chain); anyone can flag a comment by posting a bond of their own, which blocks withdrawal until a moderator resolves the challenge — an upheld flag slashes the stake to the flagger (plus a bounty) and the treasury, a rejected flag forfeits the flagger's bond instead. Sybil resistance is economic, not identity-based, and anonymity comes from a pseudonymous passkey wallet (Tempo's backendless webAuthn connector) — the contract only ever sees an address, and the frontend reconstructs the whole comment feed from chain logs, with no backend or database of its own. See [`docs/architecture.md`](docs/architecture.md) for the full component map and flows, and [`docs/security-review.md`](docs/security-review.md) for the security posture.
 
-- **Resolution timeout** — auto-reject if a moderator never rules, so a `Challenged` comment can't strand the author's stake (liveness note in `SPEC.md`).
-- **Indexer** — when a feed outgrows client-side log scanning.
-- **Variable-stake confidence signal** — surfaced quietly today; a richer treatment is a follow-up.
-- **ZK proof-of-personhood** — optional sybil-resistance upgrade that keeps anonymity.
+## Development
+
+```bash
+cd contracts && forge build --sizes
+cd contracts && forge test -vvv
+cd web && npm ci && npm run build
+cd web && npm run build:embed
+```
+
+These are exactly what CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs, plus a Slither static-analysis pass on `contracts/` gated on high-severity findings. The [`Makefile`](Makefile) wraps the same operations as `make build`, `make test`, `make web-build`, `make web-embed` (`make help` lists everything, including `make e2e` for a full lifecycle run against a local anvil node). Conventions for contributors and agents: [`AGENTS.md`](AGENTS.md).
+
+## Deployment
+
+Ante has no server component — the contract is the deployment. The live instance runs on Tempo mainnet (chain `4217`) at `0xf18b1e9c3e2d7324d768d6728032107759366736`, owned by a `TimelockController` with separate proposer, guardian, moderator, and treasury keys — see [`docs/timelock-deploy-runbook.md`](docs/timelock-deploy-runbook.md) for the two-key deploy process. Deploying your own instance is a few `make` targets (`make wallet`, `make fund`, `make deploy-timelock`, `make verify`), covered end to end in [`docs/SELF-HOST.md`](docs/SELF-HOST.md).
 
 ## License
 
-[MIT](./LICENSE) © George Courtsunis
+[MIT](LICENSE)
