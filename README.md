@@ -3,9 +3,9 @@
 
 Stake-and-slash pay-to-comment on Tempo — accountability from a refundable stablecoin bond, not an identity
 
-Most comment systems fight bad comments with identity (logins, real names) or moderation (delete it after the fact) — the wrong tools for an incentive problem, since speech in a comment box is free and low-effort noise is cheap to produce. Ante prices the thing that's underpriced instead: to comment, you post a small refundable stablecoin stake, which you reclaim (and can earn tips on) if the comment survives a challenge window, or lose if it's flagged and the flag is upheld. Flagging is staked too, so grief-flagging costs as much as bad commenting. There is no account, no real name, and no login — the contract only ever sees a pseudonymous passkey wallet address.
+Most comment systems fight bad comments with identity (logins, real names) or moderation (delete it after the fact) — the wrong tools for an incentive problem, since speech in a comment box is free and low-effort noise is cheap to produce. Ante prices the thing that's underpriced instead: to comment, you post a small refundable stablecoin stake, which you reclaim if the comment survives a challenge window, or lose if a moderator slashes it (directly, or by upholding a flag). Readers can tip a comment's author in the same token. Flagging is staked too (the minimum flag bond defaults to the minimum comment stake), so grief-flagging isn't free either. There is no account, no real name, and no login — the contract only ever sees a pseudonymous passkey wallet address.
 
-**Status:** live on Tempo mainnet since 2026-08-01 (v2, timelock-owned, escrowing real pathUSD) — unaudited; the in-house review recommends a professional audit before mainnet, which has not been done. See [`docs/security-review.md`](docs/security-review.md).
+**Status:** live on Tempo mainnet since 2026-08-01 (v2, timelock-owned, escrowing real pathUSD) — reviewed internally ([`docs/security-review.md`](docs/security-review.md), [`docs/security-audit-2026-07-14.md`](docs/security-audit-2026-07-14.md)) but not professionally audited; the review recommends a professional audit.
 
 ## Quick start
 
@@ -49,15 +49,13 @@ Full list, with rationale for each, in [`web/.env.example`](web/.env.example).
 
 ## How it works
 
-Posting escrows a stake and emits the comment text as an event (only its hash is stored on-chain); anyone can flag a comment by posting a bond of their own, which blocks withdrawal until a moderator resolves the challenge — an upheld flag slashes the stake to the flagger (plus a bounty) and the treasury, a rejected flag forfeits the flagger's bond instead. Sybil resistance is economic, not identity-based, and anonymity comes from a pseudonymous passkey wallet (Tempo's backendless webAuthn connector) — the contract only ever sees an address, and the frontend reconstructs the whole comment feed from chain logs, with no backend or database of its own. See [`docs/architecture.md`](docs/architecture.md) for the full component map and flows, and [`docs/security-review.md`](docs/security-review.md) for the security posture.
+Posting escrows a stake and emits the comment text as an event (only its hash is stored on-chain); anyone can flag a comment by posting a bond of their own, which blocks withdrawal until a moderator resolves the challenge — an upheld flag returns the flagger's bond plus a bounty from the slashed stake (the rest goes to the treasury), a rejected flag forfeits the flagger's bond instead. A moderator can also slash an unflagged comment directly, sending the whole stake to the treasury. Sybil resistance is economic, not identity-based, and anonymity comes from a pseudonymous passkey wallet (Tempo's backendless webAuthn connector) — the contract only ever sees an address, and the frontend reconstructs the whole comment feed from chain logs, with no backend or database of its own. See [`docs/architecture.md`](docs/architecture.md) for the full component map and flows, and [`docs/security-review.md`](docs/security-review.md) for the security posture.
 
 ## Development
 
 ```bash
-cd contracts && forge build --sizes
-cd contracts && forge test -vvv
-cd web && npm ci && npm run build
-cd web && npm run build:embed
+(cd contracts && forge build --sizes && forge test -vvv)
+(cd web && npm ci && npm run build && npm run build:embed)
 ```
 
 These are exactly what CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs, plus a Slither static-analysis pass on `contracts/` gated on high-severity findings. The [`Makefile`](Makefile) wraps the same operations as `make build`, `make test`, `make web-build`, `make web-embed` (`make help` lists everything, including `make e2e` for a full lifecycle run against a local anvil node). Conventions for contributors and agents: [`AGENTS.md`](AGENTS.md).
