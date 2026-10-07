@@ -104,10 +104,15 @@ cast call $TIMELOCK "getMinDelay()(uint256)" --rpc-url ...                  # ==
 ## 4. Cut the frontend over
 
 - Point the blog embed (`burntbytes [params.ante]`) at the **new** Ante address — the embed is
-  chain-agnostic, no rebuild.
+  chain-agnostic, no rebuild. *(Done: burntbytes #3, merged 2026-08-10, points at the v2 mainnet
+  address and deploy block.)*
 - Regenerate `web/src/abi/Ante.json` from the v2 build (the `comments()` getter gained `windowSecs`,
   and there are new errors). The feed reads events, so this is low-impact, but keep the ABI current.
-- Leave v1 (`0x547C…9676`) readable; its (tiny) stakes drain as authors withdraw. New comments go to v2.
+- Retire v1 (`0x547C…9676`). It was never used (no escrow, no balance, no comments), so its roles
+  were removed rather than left to drain: `setModerator(<moderator>, false)`, then
+  `transferOwnership(0x000000000000000000000000000000000000dEaD)`. Burning ownership is the only
+  route, because `renounceOwnership()` is disabled and v1 uses plain one-step `Ownable`. On-chain,
+  `owner()` now returns `0x…dEaD` and the former moderator has no role.
 
 **Client approval model (know this before launch):** the first post from a passkey wallet is
 **two confirmations** — an ERC-20 `approve` then the `post` — and the app approves an **infinite**
@@ -140,6 +145,12 @@ cast send $TIMELOCK "cancel(bytes32)" $ID --account guardian --rpc-url ...
 ```
 
 Moderation (`slash`/`resolveFlag`) is **not** timelocked — call it directly with the MODERATOR key.
+
+**The web moderation console (`#/admin`) signs with the browser's passkey or dev wallet**, not the
+MODERATOR keystore. It can moderate only once that wallet's address holds the role, which means a
+timelocked `setModerator(<address>, true)` through steps 1 and 2 above. Until then, moderate from the
+CLI with the MODERATOR key. In-browser timelock governance (schedule / execute / guardian cancel from
+a hardware wallet) is not built; owner parameters are shown read-only in the console.
 
 ## 6. Key hygiene
 
